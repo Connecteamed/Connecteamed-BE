@@ -52,7 +52,7 @@ dependencies {
 
   // Environment Variables (.env)
   implementation 'io.github.cdimascio:dotenv-java:3.0.0'
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+  implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
   //Lombok
 	compileOnly 'org.projectlombok:lombok'
@@ -68,6 +68,9 @@ dependencies {
 
   // Jackson JavaTime module to support java.time types like Instant
   implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.4'
+
+  //WebSocket
+  implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
 
     // Test
