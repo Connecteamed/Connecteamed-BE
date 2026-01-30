@@ -59,13 +59,26 @@ jobs:
             DOCKER_NETWORK=${{ secrets.DOCKER_NETWORK }}
             EOF
 
-            echo "[5] build jar"
+            echo "[5] build jar (no downtime here)"
             chmod +x ./gradlew
             ./gradlew clean bootJar
 
-            echo "[6] docker-compose up"
-            docker-compose up -d --build --remove-orphans
+            echo "[6] rebuild image (no downtime here)"
+            docker-compose build app
 
-            echo "[6] status"
+            echo "[7] restart only app container"
+            docker-compose up -d --no-deps --remove-orphans app
+
+            echo "[8] wait until service is back (simple check)"
+            for i in $(seq 1 60); do
+              if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
+                echo "Service is up"
+                break
+              fi
+              echo "Waiting... ($i/60)"
+              sleep 2
+            done
+
+            echo "[9] status"
             docker-compose ps
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
