@@ -21,7 +21,8 @@ jobs:
             set -e
 
             echo "[1] move to deploy path"
-            cd /home/ubuntu/connecteamed/Connecteamed-BE
+            DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
+            cd "$DEPLOY_PATH"
 
             echo "[2] update source (develop)"
             git fetch --all
