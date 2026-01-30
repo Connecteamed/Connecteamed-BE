@@ -89,11 +89,11 @@ jobs:
               chmod +x ./gradlew
               ./gradlew clean bootJar
 
-              docker-compose build app
-              docker-compose up -d --no-deps --remove-orphans app
+              sudo docker-compose build app
+              sudo docker-compose up -d --no-deps --remove-orphans app
 
-              docker-compose ps
-              docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+              sudo docker-compose ps
+              sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
               echo "[ROLLBACK] done"
             }
 
@@ -128,8 +128,8 @@ jobs:
               echo "Error: docker-compose not found in PATH."
               exit 1
             fi
-            docker -v
-            docker-compose -v
+            sudo docker -v
+            sudo docker-compose -v
 
             echo "[5] write .env (overwrite)"
             cat > .env << 'EOF'
@@ -155,10 +155,10 @@ jobs:
             ./gradlew clean bootJar
 
             echo "[7] rebuild image (no downtime here)"
-            docker-compose build app
+            sudo docker-compose build app
 
             echo "[8] restart only app container"
-            docker-compose up -d --no-deps --remove-orphans app
+            sudo docker-compose up -d --no-deps --remove-orphans app
 
             echo "[9] wait until service is back (simple check)"
             up=0
@@ -179,8 +179,8 @@ jobs:
             fi
 
             echo "[10] cleanup dangling images (disk space)"
-            docker image prune -f || true
+            sudo docker image prune -f || true
 
             echo "[11] status"
-            docker-compose ps
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            sudo docker-compose ps
+            sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
