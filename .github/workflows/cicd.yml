@@ -50,7 +50,11 @@ jobs:
             DOCKER_NETWORK=${{ secrets.DOCKER_NETWORK }}
             EOF
 
-            echo "[5] build & up"
+            echo "[5] build jar"
+            chmod +x ./gradlew
+            ./gradlew clean bootJar
+
+            echo "[6] docker-compose up"
             docker-compose up -d --build --remove-orphans
 
             echo "[6] status"
