@@ -25,15 +25,15 @@ jobs:
           --health-retries=5
 
     env:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+      SPRING_PROFILES_ACTIVE: test
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/testdb
       SPRING_DATASOURCE_USERNAME: testuser
       SPRING_DATASOURCE_PASSWORD: testpass
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
 
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: testdb
-      DB_USER: testuser
-      DB_PASSWORD: testpass
+      # 테스트에서 테이블 자동 생성이 필요하면(통합테스트면 보통 필요)
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
 
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
@@ -53,10 +53,23 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
+      - name: Wait for Postgres port
+        run: |
+          for i in $(seq 1 60); do
+            if nc -z 127.0.0.1 5432; then
+              echo "Postgres is accepting connections"
+              exit 0
+            fi
+            echo "Waiting for Postgres... ($i/60)"
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
+
       - name: Gradle test
         run: |
           chmod +x ./gradlew
-          ./gradlew test
+          ./gradlew test --info
 
   deploy:
     runs-on: ubuntu-latest
