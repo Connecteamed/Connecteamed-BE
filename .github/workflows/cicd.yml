@@ -28,7 +28,15 @@ jobs:
             git fetch --all
             git reset --hard origin/develop
 
-            echo "[3] check docker-compose"
+            echo "[3] check docker and docker-compose"
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Error: docker not found in PATH."
+              exit 1
+            fi
+            if ! command -v docker-compose >/dev/null 2>&1; then
+              echo "Error: docker-compose not found in PATH."
+              exit 1
+            fi
             docker -v
             docker-compose -v
 
