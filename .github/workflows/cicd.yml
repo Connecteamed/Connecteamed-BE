@@ -1,0 +1,58 @@
+name: Deploy Connecteamed (Lightsail, docker-compose)
+
+on:
+  push:
+    branches: [ "develop" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH (Lightsail)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+
+            echo "[1] move to deploy path"
+            cd /home/ubuntu/connecteamed/Connecteamed-BE
+
+            echo "[2] update source (develop)"
+            git fetch --all
+            git reset --hard origin/develop
+
+            echo "[3] check docker-compose"
+            docker -v
+            docker-compose -v
+
+            echo "[4] write .env (overwrite)"
+            cat > .env << 'EOF'
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+
+            APP_S3_ACCESS_KEY=${{ secrets.APP_S3_ACCESS_KEY }}
+            APP_S3_SECRET_KEY=${{ secrets.APP_S3_SECRET_KEY }}
+            APP_S3_BUCKET=${{ secrets.APP_S3_BUCKET }}
+            APP_S3_REGION=${{ secrets.APP_S3_REGION }}
+
+            DOCKER_NETWORK=${{ secrets.DOCKER_NETWORK }}
+            EOF
+
+            echo "[5] build & up"
+            docker-compose up -d --build --remove-orphans
+
+            echo "[6] status"
+            docker-compose ps
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
