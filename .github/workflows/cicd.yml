@@ -24,6 +24,29 @@ jobs:
             DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
             cd "$DEPLOY_PATH"
 
+            echo "[1.1] save previous commit for rollback"
+            PREV_COMMIT=$(git rev-parse HEAD)
+
+            rollback() {
+              echo "[ROLLBACK] deployment failed. reverting to previous commit: $PREV_COMMIT"
+              trap - ERR
+
+              git reset --hard "$PREV_COMMIT"
+
+              chmod +x ./gradlew
+              ./gradlew clean bootJar
+
+              docker-compose build app
+              docker-compose up -d --no-deps --remove-orphans app
+
+              docker-compose ps
+              docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+              echo "[ROLLBACK] done"
+            }
+
+            trap 'rollback; exit 1' ERR
+
             echo "[2] update source (develop)"
             git fetch --all
             git reset --hard origin/develop
@@ -70,14 +93,22 @@ jobs:
             docker-compose up -d --no-deps --remove-orphans app
 
             echo "[8] wait until service is back (simple check)"
+            up=0
             for i in $(seq 1 60); do
-              if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
-                echo "Service is up"
+              code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+              if [ "$code" != "000" ]; then
+                echo "Service is responding (HTTP $code)"
+                up=1
                 break
               fi
               echo "Waiting... ($i/60)"
               sleep 2
             done
+
+            if [ "$up" -ne 1 ]; then
+              echo "Service did not recover in time. triggering rollback."
+              exit 1
+            fi
 
             echo "[9] status"
             docker-compose ps
