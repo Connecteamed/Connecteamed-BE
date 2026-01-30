@@ -1,0 +1,151 @@
+name: Deploy Connecteamed (Lightsail, docker-compose)
+
+on:
+  push:
+    branches: [ "develop" ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle test
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Deploy via SSH (Lightsail)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+
+            echo "[1] move to deploy path"
+            DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
+            cd "$DEPLOY_PATH"
+
+            echo "[1.1] save previous commit for rollback"
+            PREV_COMMIT=$(git rev-parse HEAD)
+
+            rollback() {
+              echo "[ROLLBACK] deployment failed. reverting to previous commit: $PREV_COMMIT"
+              trap - ERR
+
+              git reset --hard "$PREV_COMMIT"
+
+              chmod +x ./gradlew
+              ./gradlew clean bootJar
+
+              docker-compose build app
+              docker-compose up -d --no-deps --remove-orphans app
+
+              docker-compose ps
+              docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+              echo "[ROLLBACK] done"
+            }
+
+            trap 'rollback; exit 1' ERR
+
+            echo "[2] ensure working tree is clean (prevent discarding local changes)"
+            if [ -n "$(git status --porcelain)" ]; then
+              echo "Error: uncommitted local changes exist on server. aborting deploy."
+              git status --porcelain
+              exit 1
+            fi
+
+            echo "[3] update source (develop)"
+            git fetch origin develop
+
+            echo "[3.1] verify remote ref exists"
+            if ! git rev-parse --verify origin/develop >/dev/null 2>&1; then
+              echo "Error: origin/develop not found (fetch may have failed)."
+              exit 1
+            fi
+
+            echo "[3.2] sync to origin/develop"
+            git checkout -B develop origin/develop
+            git reset --hard origin/develop
+
+            echo "[4] check docker and docker-compose"
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Error: docker not found in PATH."
+              exit 1
+            fi
+            if ! command -v docker-compose >/dev/null 2>&1; then
+              echo "Error: docker-compose not found in PATH."
+              exit 1
+            fi
+            docker -v
+            docker-compose -v
+
+            echo "[5] write .env (overwrite)"
+            cat > .env << 'EOF'
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+
+            APP_S3_ACCESS_KEY=${{ secrets.APP_S3_ACCESS_KEY }}
+            APP_S3_SECRET_KEY=${{ secrets.APP_S3_SECRET_KEY }}
+            APP_S3_BUCKET=${{ secrets.APP_S3_BUCKET }}
+            APP_S3_REGION=${{ secrets.APP_S3_REGION }}
+
+            DOCKER_NETWORK=${{ secrets.DOCKER_NETWORK }}
+            EOF
+
+            echo "[6] build jar (no downtime here)"
+            chmod +x ./gradlew
+            ./gradlew clean bootJar
+
+            echo "[7] rebuild image (no downtime here)"
+            docker-compose build app
+
+            echo "[8] restart only app container"
+            docker-compose up -d --no-deps --remove-orphans app
+
+            echo "[9] wait until service is back (simple check)"
+            up=0
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+              if [ "$code" != "000" ]; then
+                echo "Service is responding (HTTP $code)"
+                up=1
+                break
+              fi
+              echo "Waiting... ($i/60)"
+              sleep 2
+            done
+
+            if [ "$up" -ne 1 ]; then
+              echo "Service did not recover in time. triggering rollback."
+              exit 1
+            fi
+
+            echo "[10] cleanup dangling images (disk space)"
+            docker image prune -f || true
+
+            echo "[11] status"
+            docker-compose ps
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
