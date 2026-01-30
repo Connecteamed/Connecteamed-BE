@@ -69,7 +69,15 @@ jobs:
       - name: Gradle test
         run: |
           chmod +x ./gradlew
-          ./gradlew test --info
+          ./gradlew test --info --stacktrace --no-daemon
+        continue-on-error: false
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
 
   deploy:
     runs-on: ubuntu-latest
