@@ -120,8 +120,8 @@ jobs:
             git reset --hard origin/develop
 
             echo "[4] check docker and docker compose"
-            if ! command -v docker >/dev/null 2>&1; then
-              echo "Error: docker not found in PATH."
+            if ! docker compose version >/dev/null 2>&1; then
+              echo "Error: docker compose plugin not found."
               exit 1
             fi
             if ! command -v docker compose >/dev/null 2>&1; then
