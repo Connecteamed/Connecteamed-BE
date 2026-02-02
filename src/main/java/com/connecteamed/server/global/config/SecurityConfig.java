@@ -59,7 +59,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
-                    "/", "/index.html", "/document.html",
+                    "/", "/index.html", "/document.html", "/collab.html",
                     "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error",
                     "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**"
                 ).permitAll()
@@ -79,9 +79,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
-                    "/", "/index.html", "/document.html",
+                    "/", "/index.html", "*.html",
                     "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error",
-                    "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**"
+                    "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**",
+                    "/ws/docs/**"
                 ).permitAll()
                 // 로그인/회원가입 같은 것만 예외로 오픈
                 .requestMatchers("/api/auth/login","/api/auth/refresh","/api/auth/signup","/api/members/check-id").permitAll()
