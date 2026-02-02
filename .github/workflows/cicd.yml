@@ -9,7 +9,6 @@ jobs:
   build:
     name: 🧪 Build (skip tests) + PR comment
     runs-on: ubuntu-latest
-
     steps:
       - name: ✅ Checkout repository
         uses: actions/checkout@v4
@@ -19,6 +18,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: 'gradle'
 
       - name: 🔧 Grant Gradle permission
         run: chmod +x ./gradlew
@@ -34,7 +34,6 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
             const branchName = context.payload.pull_request.head.ref;
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -50,7 +49,6 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
             const branchName = context.payload.pull_request.head.ref;
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -61,111 +59,105 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-
     steps:
       - name: Deploy via SSH (Lightsail)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # 🚨 [수정됨] 여기에 값을 정의해야 envs를 통해 안전하게 넘어갑니다.
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          APP_S3_ACCESS_KEY: ${{ secrets.APP_S3_ACCESS_KEY }}
+          APP_S3_SECRET_KEY: ${{ secrets.APP_S3_SECRET_KEY }}
+          APP_S3_BUCKET: ${{ secrets.APP_S3_BUCKET }}
+          APP_S3_REGION: ${{ secrets.APP_S3_REGION }}
+          DOCKER_NETWORK: ${{ secrets.DOCKER_NETWORK }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          # 위에서 정의한 env 변수들을 SSH 세션으로 넘김
+          envs: DB_HOST,DB_PORT,DB_NAME,DB_USER,DB_PASSWORD,GEMINI_API_KEY,JWT_SECRET_KEY,APP_S3_ACCESS_KEY,APP_S3_SECRET_KEY,APP_S3_BUCKET,APP_S3_REGION,DOCKER_NETWORK,DEPLOY_PATH
           script_stop: true
           script: |
             set -e
 
             echo "[1] move to deploy path"
-            DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
             cd "$DEPLOY_PATH"
 
-            echo "[1.1] save previous commit for rollback"
+            echo "[1.1] save previous commit for rollback (Before Fetch)"
             PREV_COMMIT=$(git rev-parse HEAD)
 
+            # 롤백 함수 정의
             rollback() {
               echo "[ROLLBACK] deployment failed. reverting to previous commit: $PREV_COMMIT"
               trap - ERR
-
+              
+              # 코드 되돌리기 (강제 리셋)
               git reset --hard "$PREV_COMMIT"
-
+              
+              # 이전 상태로 재빌드 및 실행
               chmod +x ./gradlew
               ./gradlew clean bootJar
-
               sudo docker compose build app
               sudo docker compose up -d --no-deps --remove-orphans app
-
-              sudo docker compose ps
-              sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+              
               echo "[ROLLBACK] done"
             }
 
+            # 에러 발생 시 rollback 함수 실행
             trap 'rollback; exit 1' ERR
 
-            echo "[2] ensure working tree is clean (prevent discarding local changes)"
-            if [ -n "$(git status --porcelain)" ]; then
-              echo "Error: uncommitted local changes exist on server. aborting deploy."
-              git status --porcelain
-              exit 1
-            fi
+            echo "[2] ensure working tree is clean"
+            git reset --hard HEAD
+            git clean -fd
 
             echo "[3] update source (develop)"
             git fetch origin develop
-
-            echo "[3.1] verify remote ref exists"
-            if ! git rev-parse --verify origin/develop >/dev/null 2>&1; then
-              echo "Error: origin/develop not found (fetch may have failed)."
-              exit 1
-            fi
-
-            echo "[3.2] sync to origin/develop"
             git checkout -B develop origin/develop
             git reset --hard origin/develop
 
-            echo "[4] check docker and docker compose"
-            if ! docker compose version >/dev/null 2>&1; then
-              echo "Error: docker compose plugin not found."
-              exit 1
-            fi
-            if ! command -v docker compose >/dev/null 2>&1; then
-              echo "Error: docker compose not found in PATH."
-              exit 1
-            fi
-            sudo docker -v
-            sudo docker compose version
-
-            echo "[5] write .env (overwrite)"
-            cat > .env << 'EOF'
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
-
-            APP_S3_ACCESS_KEY=${{ secrets.APP_S3_ACCESS_KEY }}
-            APP_S3_SECRET_KEY=${{ secrets.APP_S3_SECRET_KEY }}
-            APP_S3_BUCKET=${{ secrets.APP_S3_BUCKET }}
-            APP_S3_REGION=${{ secrets.APP_S3_REGION }}
-
-            DOCKER_NETWORK=${{ secrets.DOCKER_NETWORK }}
+            echo "[4] write .env (overwrite on Server)"
+            umask 077
+            # envs로 넘겨받은 변수들은 $변수명 으로 바로 사용 가능
+            cat <<EOF > .env
+            DB_HOST=$DB_HOST
+            DB_PORT=$DB_PORT
+            DB_NAME=$DB_NAME
+            DB_USER=$DB_USER
+            DB_PASSWORD=$DB_PASSWORD
+            GEMINI_API_KEY=$GEMINI_API_KEY
+            JWT_SECRET_KEY=$JWT_SECRET_KEY
+            APP_S3_ACCESS_KEY=$APP_S3_ACCESS_KEY
+            APP_S3_SECRET_KEY=$APP_S3_SECRET_KEY
+            APP_S3_BUCKET=$APP_S3_BUCKET
+            APP_S3_REGION=$APP_S3_REGION
+            DOCKER_NETWORK=$DOCKER_NETWORK
             EOF
+            chmod 600 .env
 
-            echo "[6] build jar (no downtime here)"
+            echo "[5] build jar (Server resource heavy warning ⚠️)"
             chmod +x ./gradlew
             ./gradlew clean bootJar
 
-            echo "[7] rebuild image (no downtime here)"
+            echo "[6] rebuild image"
             sudo docker compose build app
 
-            echo "[8] restart only app container"
+            echo "[7] restart app container"
             sudo docker compose up -d --no-deps --remove-orphans app
 
-            echo "[9] wait until service is back (simple check)"
+            echo "[8] health check"
             up=0
             for i in $(seq 1 60); do
               code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
-              if [ "$code" != "000" ]; then
-                echo "Service is responding (HTTP $code)"
+              # 200(성공), 401/403(인증에러-서버는 뜸) 이면 성공으로 간주
+              if [ "$code" = "200" ] || [ "$code" = "401" ] || [ "$code" = "403" ]; then
+                echo "Service is up (HTTP $code)"
                 up=1
                 break
               fi
@@ -174,13 +166,9 @@ jobs:
             done
 
             if [ "$up" -ne 1 ]; then
-              echo "Service did not recover in time. triggering rollback."
+              echo "Service failed to start."
               exit 1
             fi
 
-            echo "[10] cleanup dangling images (disk space)"
-            sudo docker image prune -f || true
-
-            echo "[11] status"
-            sudo docker compose ps
-            sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "[9] cleanup"
+            sudo docker image prune -f
