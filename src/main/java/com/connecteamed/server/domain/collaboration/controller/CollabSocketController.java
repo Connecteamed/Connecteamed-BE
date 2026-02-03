@@ -1,23 +1,30 @@
 package com.connecteamed.server.domain.collaboration.controller;
 
-import com.connecteamed.server.domain.collaboration.dto.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ListOperations;
-import org.springframework.stereotype.Component;
-import org.springframework.web.socket.*;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
+import com.connecteamed.server.domain.document.entity.Document;
+import com.connecteamed.server.domain.document.repository.DocumentRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
@@ -26,72 +33,68 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final DocumentRepository documentRepository; 
 
-    // 현재 서버 인스턴스에 연결된 세션만 관리 (메모리)
-    // Map<DocId, Set<Session>>
     private static final Map<String, Set<WebSocketSession>> localRoomSessions = new ConcurrentHashMap<>();
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
 
-    // 1. 소켓 연결 시
+    // === 1. 소켓 연결 시 (세션 등록만! 데이터 전송 X) ===
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
-        // URI에서 docId 추출 (예: /ws/docs/123 -> 123)
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String path = session.getUri().getPath();
         String docId = path.substring(path.lastIndexOf('/') + 1);
-
         session.getAttributes().put("docId", docId);
-        
-        localRoomSessions.computeIfAbsent(docId, k -> Collections.synchronizedSet(new HashSet<>()))
-                         .add(session);
 
-        log.info("Client connected: session={} doc={}", session.getId(), docId);
+        // 방 세션에 추가
+        localRoomSessions.computeIfAbsent(docId, k -> Collections.synchronizedSet(new HashSet<>())).add(session);
+        
+        log.info("Session connected: {}", session.getId());
+        // ★ 삭제됨: 여기서 loadFromDbToRedis나 sendHistoryToUser를 호출하지 마세요.
+        // 클라이언트가 보내는 "JOIN" 메시지에서 처리해야 순서가 꼬이지 않습니다.
     }
 
-    // 2. 메시지 수신 (클라이언트 -> 서버)
+    // === 2. 메시지 처리 ===
     @Override
-        protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-            SocketMessage msg = objectMapper.readValue(message.getPayload(), SocketMessage.class);
-            msg.setUserId(session.getId());
-            String docId = (String) session.getAttributes().get("docId");
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        SocketMessage msg = objectMapper.readValue(message.getPayload(), SocketMessage.class);
+        msg.setUserId(session.getId());
+        String docId = (String) session.getAttributes().get("docId");
 
-            // 1. 입장(JOIN) 메시지인 경우 -> 지금까지의 히스토리를 얘한테만 다 쏴줌
-            if ("JOIN".equals(msg.getType())) {
-                sendHistoryToUser(session, docId);
-                return; // JOIN 메시지는 브로드캐스트 하지 않음 (필요 시 변경 가능)
-            }
-
-            // 2. 업데이트(UPDATE) 메시지인 경우 -> Redis에 저장 후 브로드캐스트
-            if ("UPDATE".equals(msg.getType())) {
-                saveUpdateToRedis(docId, msg.getPayload());
-            }
-
-            // 3. 다른 서버들에게 전파 (기존 로직)
-            redisTemplate.convertAndSend("doc-channel", msg);
+        // [핵심] JOIN 메시지가 오면 그때 DB+Redis 데이터를 순서대로 줍니다.
+        if ("JOIN".equals(msg.getType())) {
+            processJoin(session, docId);
+            return; 
         }
 
-    // 3. 연결 종료 시
+        if ("UPDATE".equals(msg.getType())) {
+            saveUpdateToRedis(docId, msg.getPayload());
+            redisTemplate.convertAndSend("doc-channel", msg);
+        }
+    }
+
+    // === 3. 퇴장 시 ===
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String docId = (String) session.getAttributes().get("docId");
         Set<WebSocketSession> sessions = localRoomSessions.get(docId);
-        
+
         if (sessions != null) {
             sessions.remove(session);
+            
+            // 마지막 사람이 나가면 DB 저장
             if (sessions.isEmpty()) {
+                log.info("Last user left doc {}. Saving...", docId);
+                saveRedisToDb(docId);
                 localRoomSessions.remove(docId);
             }
         }
-        log.info("Client disconnected: session={}", session.getId());
     }
 
-    // 4. Redis 구독자로부터 호출되는 메서드 (서버 -> 클라이언트 브로드캐스트)
+    // === 4. Redis Pub/Sub 브로드캐스트 ===
     public void broadcastToLocal(SocketMessage msg) {
         Set<WebSocketSession> sessions = localRoomSessions.get(msg.getDocId());
-        
         if (sessions != null) {
             sessions.forEach(session -> {
-                // 보낸 당사자가 아니면 메시지 전송 (Echo 방지)
-                // (만약 클라이언트가 Echo를 원하면 이 조건문 제거)
                 if (session.isOpen() && !session.getId().equals(msg.getUserId())) {
                     try {
                         String json = objectMapper.writeValueAsString(msg);
@@ -104,41 +107,91 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    /**
-     * [핵심] Redis에 저장된 업데이트 내역을 싹 긁어서 신규 유저에게 전송
-     */
-    private void sendHistoryToUser(WebSocketSession session, String docId) {
-        String key = HISTORY_KEY_PREFIX + docId;
-        // Redis List에서 0번부터 끝(-1)까지 다 가져옴
-        ListOperations<String, Object> listOps = redisTemplate.opsForList();
-        List<Object> history = listOps.range(key, 0, -1);
+    // ========================================================
+    //  Private Methods (중복 제거 및 로직 통합)
+    // ========================================================
 
-        if (history != null) {
-            log.info("Sending history to user {}: {} items", session.getId(), history.size());
-            for (Object updatePayload : history) {
-                try {
-                    // 과거 기록을 UPDATE 타입으로 포장해서 전송
-                    SocketMessage historyMsg = new SocketMessage();
-                    historyMsg.setType("UPDATE");
-                    historyMsg.setDocId(docId);
-                    historyMsg.setPayload((String) updatePayload); // Base64 String
-                    
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(historyMsg)));
-                } catch (IOException e) {
-                    log.error("Error sending history", e);
-                }
+    /**
+     * [통합 메서드] 입장 시 DB 데이터(1타) + Redis 변경분(2타) 전송
+     */
+    private void processJoin(WebSocketSession session, String docId) throws IOException {
+        // 1. DB에서 저장된 최신 스냅샷(Base) 전송
+        Document doc = documentRepository.findById(Long.parseLong(docId)).orElse(null);
+        if (doc != null && doc.getContent() != null) {
+            SocketMessage dbMsg = new SocketMessage();
+            dbMsg.setType("INITIAL_LOAD"); 
+            dbMsg.setDocId(docId);
+            dbMsg.setPayload(doc.getContent());
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(dbMsg)));
+        }
+
+        // 2. Redis에 쌓인 실시간 변경분(Delta) 전송
+        String key = HISTORY_KEY_PREFIX + docId;
+        List<Object> redisHistory = redisTemplate.opsForList().range(key, 0, -1);
+        
+        if (redisHistory != null && !redisHistory.isEmpty()) {
+            log.info("Sending {} redis updates to user {}", redisHistory.size(), session.getId());
+            for (Object payload : redisHistory) {
+                SocketMessage redisMsg = new SocketMessage();
+                redisMsg.setType("UPDATE"); 
+                redisMsg.setDocId(docId);
+                redisMsg.setPayload((String) payload);
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(redisMsg)));
             }
         }
     }
 
-    /**
-     * [핵심] 업데이트 내역을 Redis List에 저장 (Append)
-     */
     private void saveUpdateToRedis(String docId, String payload) {
         String key = HISTORY_KEY_PREFIX + docId;
         redisTemplate.opsForList().rightPush(key, payload);
-        
-        // (선택사항) 너무 많이 쌓이면 메모리 터지니까 TTL 설정 (예: 1일)
         redisTemplate.expire(key, 24, TimeUnit.HOURS); 
     }
+
+    private void saveRedisToDb(String docId) {
+            String key = HISTORY_KEY_PREFIX + docId;
+            // 1. Redis에 있는 새로운 변경사항들 가져오기
+            List<Object> newUpdates = redisTemplate.opsForList().range(key, 0, -1);
+            if (newUpdates == null || newUpdates.isEmpty()) return;
+
+            try {
+                Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
+                
+                // 2. 기존 DB에 저장된 내용 가져오기
+                List<String> existingHistory = new ArrayList<>();
+                String dbContent = doc.getContent();
+                
+                if (dbContent != null && !dbContent.isEmpty()) {
+                    try {
+                        // 기존 내용이 JSON 배열인지 확인하고 파싱
+                        if (dbContent.trim().startsWith("[")) {
+                            existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
+                        } else {
+                            // 만약 예전 방식(일반 텍스트)으로 저장된 거라면... 
+                            // Yjs 히스토리랑 섞이면 안 되므로 일단 무시하거나 마이그레이션이 필요하지만,
+                            // 지금은 "새로운 히스토리 시작"으로 간주합니다.
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to parse existing DB content as history list. Starting fresh.");
+                    }
+                }
+
+                // 3. 기존 역사 + 새로운 변경사항 합치기 (Append)
+                for (Object update : newUpdates) {
+                    existingHistory.add((String) update);
+                }
+
+                // 4. 합친 전체 역사를 다시 JSON으로 변환해서 저장
+                String mergedHistory = objectMapper.writeValueAsString(existingHistory);
+                
+                doc.updateText(docId, mergedHistory); 
+                documentRepository.save(doc);
+
+                // 5. Redis 비우기
+                redisTemplate.delete(key);
+                log.info("Document {} saved. Total history size: {}", docId, existingHistory.size());
+
+            } catch (Exception e) {
+                log.error("DB Save failed", e);
+            }
+        }
 }
