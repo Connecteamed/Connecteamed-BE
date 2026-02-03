@@ -194,4 +194,5 @@ public class CollabSocketController extends TextWebSocketHandler {
                 log.error("DB Save failed", e);
             }
         }
+    
 }
