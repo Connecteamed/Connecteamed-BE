@@ -114,7 +114,23 @@
                 ytext.delete(0, ytext.length);
                 ytext.insert(0, editor.value);
             });
+
+            // ★ [추가] 타이핑 할 때마다(혹은 Debounce 적용해서) "완성본"도 서버에 전송
+            // 실무 팁: 매번 보내면 부하가 크니, 'lodash.debounce' 등으로 1~2초에 한 번만 보내게 하세요.
+            // 여기서는 MVP니까 그냥 바로 보냅니다.
+            sendSnapshot(editor.value);
         };
+      
+        function sendSnapshot(text) {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                const msg = {
+                    type: "SAVE_SNAPSHOT",
+                    docId: myDocId,
+                    payload: text // 이번엔 Base64가 아니라 진짜 한글 텍스트!
+                };
+                ws.send(JSON.stringify(msg));
+            }
+        }
 
         // 4. Yjs 업데이트 발생 시 -> 웹소켓 전송
         ydoc.on('update', (update, origin) => {
