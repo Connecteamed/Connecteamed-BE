@@ -36,6 +36,8 @@ public class CollabSocketController extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final DocumentRepository documentRepository; 
 
+    private final DocumentCollaborationService collabService;
+
     private static final Map<String, Set<WebSocketSession>> localRoomSessions = new ConcurrentHashMap<>();
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
 
@@ -72,8 +74,9 @@ public class CollabSocketController extends TextWebSocketHandler {
             redisTemplate.convertAndSend("doc-channel", msg);
         }
 
-        if ("SAVE_SNAPSHT".equals(msg.getType())) {
-            saveSnapshot(docId, msg.getPayload());
+        if ("SAVE_SNAPSHOT".equals(msg.getType())) {
+            // Service에게 위임
+            collabService.savePlainTextSnapshot(docId, msg.getPayload());
         }
     }
 
@@ -116,17 +119,18 @@ public class CollabSocketController extends TextWebSocketHandler {
      * [통합 메서드] 입장 시 DB 데이터(1타) + Redis 변경분(2타) 전송
      */
     private void processJoin(WebSocketSession session, String docId) throws IOException {
-        // 1. DB에서 저장된 최신 스냅샷(Base) 전송
-        Document doc = documentRepository.findById(Long.parseLong(docId)).orElse(null);
-        if (doc != null && doc.getContent() != null) {
+        // 1. Service 호출 (트랜잭션 처리됨)
+        String dbContent = collabService.getDocumentContent(docId);
+        
+        if (dbContent != null) {
             SocketMessage dbMsg = new SocketMessage();
-            dbMsg.setType("INITIAL_LOAD"); 
+            dbMsg.setType("INITIAL_LOAD");
             dbMsg.setDocId(docId);
-            dbMsg.setPayload(doc.getContent());
+            dbMsg.setPayload(dbContent);
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(dbMsg)));
         }
 
-        // 2. Redis에 쌓인 실시간 변경분(Delta) 전송
+        // 2. Redis 조회 (Redis는 트랜잭션 필요 없음)
         String key = HISTORY_KEY_PREFIX + docId;
         List<Object> redisHistory = redisTemplate.opsForList().range(key, 0, -1);
         
@@ -134,7 +138,7 @@ public class CollabSocketController extends TextWebSocketHandler {
             log.info("Sending {} redis updates to user {}", redisHistory.size(), session.getId());
             for (Object payload : redisHistory) {
                 SocketMessage redisMsg = new SocketMessage();
-                redisMsg.setType("UPDATE"); 
+                redisMsg.setType("UPDATE");
                 redisMsg.setDocId(docId);
                 redisMsg.setPayload((String) payload);
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(redisMsg)));
@@ -150,49 +154,14 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private void saveRedisToDb(String docId) {
         String key = HISTORY_KEY_PREFIX + docId;
-        // 1. Redis에 있는 새로운 변경사항들 가져오기
         List<Object> newUpdates = redisTemplate.opsForList().range(key, 0, -1);
-        if (newUpdates == null || newUpdates.isEmpty()) return;
-
-        try {
-            Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
+        
+        if (newUpdates != null && !newUpdates.isEmpty()) {
+            // 1. Service에게 저장 위임 (트랜잭션 안전)
+            collabService.saveAndFlushHistory(docId, newUpdates);
             
-            // 2. 기존 DB에 저장된 내용 가져오기
-            List<String> existingHistory = new ArrayList<>();
-            String dbContent = doc.getContent();
-            
-            if (dbContent != null && !dbContent.isEmpty()) {
-                try {
-                    // 기존 내용이 JSON 배열인지 확인하고 파싱
-                    if (dbContent.trim().startsWith("[")) {
-                        existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
-                    } else {
-                        // 만약 예전 방식(일반 텍스트)으로 저장된 거라면... 
-                        // Yjs 히스토리랑 섞이면 안 되므로 일단 무시하거나 마이그레이션이 필요하지만,
-                        // 지금은 "새로운 히스토리 시작"으로 간주합니다.
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to parse existing DB content as history list. Starting fresh.");
-                }
-            }
-
-            // 3. 기존 역사 + 새로운 변경사항 합치기 (Append)
-            for (Object update : newUpdates) {
-                existingHistory.add((String) update);
-            }
-
-            // 4. 합친 전체 역사를 다시 JSON으로 변환해서 저장
-            String mergedHistory = objectMapper.writeValueAsString(existingHistory);
-            
-            doc.updateText(docId, mergedHistory); 
-            documentRepository.save(doc);
-
-            // 5. Redis 비우기
+            // 2. 저장이 성공했으면 Redis 비우기
             redisTemplate.delete(key);
-            log.info("Document {} saved. Total history size: {}", docId, existingHistory.size());
-
-        } catch (Exception e) {
-            log.error("DB Save failed", e);
         }
     }
 
