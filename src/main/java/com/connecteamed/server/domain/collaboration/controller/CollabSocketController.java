@@ -18,6 +18,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
+import com.connecteamed.server.domain.collaboration.service.DocumentCollaborationService;
 import com.connecteamed.server.domain.document.entity.Document;
 import com.connecteamed.server.domain.document.repository.DocumentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -70,6 +71,10 @@ public class CollabSocketController extends TextWebSocketHandler {
             saveUpdateToRedis(docId, msg.getPayload());
             redisTemplate.convertAndSend("doc-channel", msg);
         }
+
+        if ("SAVE_SNAPSHT".equals(msg.getType())) {
+            saveSnapshot(docId, msg.getPayload());
+        }
     }
 
     // === 3. 퇴장 시 ===
@@ -106,10 +111,6 @@ public class CollabSocketController extends TextWebSocketHandler {
             });
         }
     }
-
-    // ========================================================
-    //  Private Methods (중복 제거 및 로직 통합)
-    // ========================================================
 
     /**
      * [통합 메서드] 입장 시 DB 데이터(1타) + Redis 변경분(2타) 전송
@@ -148,51 +149,58 @@ public class CollabSocketController extends TextWebSocketHandler {
     }
 
     private void saveRedisToDb(String docId) {
-            String key = HISTORY_KEY_PREFIX + docId;
-            // 1. Redis에 있는 새로운 변경사항들 가져오기
-            List<Object> newUpdates = redisTemplate.opsForList().range(key, 0, -1);
-            if (newUpdates == null || newUpdates.isEmpty()) return;
+        String key = HISTORY_KEY_PREFIX + docId;
+        // 1. Redis에 있는 새로운 변경사항들 가져오기
+        List<Object> newUpdates = redisTemplate.opsForList().range(key, 0, -1);
+        if (newUpdates == null || newUpdates.isEmpty()) return;
 
-            try {
-                Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
-                
-                // 2. 기존 DB에 저장된 내용 가져오기
-                List<String> existingHistory = new ArrayList<>();
-                String dbContent = doc.getContent();
-                
-                if (dbContent != null && !dbContent.isEmpty()) {
-                    try {
-                        // 기존 내용이 JSON 배열인지 확인하고 파싱
-                        if (dbContent.trim().startsWith("[")) {
-                            existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
-                        } else {
-                            // 만약 예전 방식(일반 텍스트)으로 저장된 거라면... 
-                            // Yjs 히스토리랑 섞이면 안 되므로 일단 무시하거나 마이그레이션이 필요하지만,
-                            // 지금은 "새로운 히스토리 시작"으로 간주합니다.
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to parse existing DB content as history list. Starting fresh.");
+        try {
+            Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
+            
+            // 2. 기존 DB에 저장된 내용 가져오기
+            List<String> existingHistory = new ArrayList<>();
+            String dbContent = doc.getContent();
+            
+            if (dbContent != null && !dbContent.isEmpty()) {
+                try {
+                    // 기존 내용이 JSON 배열인지 확인하고 파싱
+                    if (dbContent.trim().startsWith("[")) {
+                        existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
+                    } else {
+                        // 만약 예전 방식(일반 텍스트)으로 저장된 거라면... 
+                        // Yjs 히스토리랑 섞이면 안 되므로 일단 무시하거나 마이그레이션이 필요하지만,
+                        // 지금은 "새로운 히스토리 시작"으로 간주합니다.
                     }
+                } catch (Exception e) {
+                    log.warn("Failed to parse existing DB content as history list. Starting fresh.");
                 }
-
-                // 3. 기존 역사 + 새로운 변경사항 합치기 (Append)
-                for (Object update : newUpdates) {
-                    existingHistory.add((String) update);
-                }
-
-                // 4. 합친 전체 역사를 다시 JSON으로 변환해서 저장
-                String mergedHistory = objectMapper.writeValueAsString(existingHistory);
-                
-                doc.updateText(docId, mergedHistory); 
-                documentRepository.save(doc);
-
-                // 5. Redis 비우기
-                redisTemplate.delete(key);
-                log.info("Document {} saved. Total history size: {}", docId, existingHistory.size());
-
-            } catch (Exception e) {
-                log.error("DB Save failed", e);
             }
+
+            // 3. 기존 역사 + 새로운 변경사항 합치기 (Append)
+            for (Object update : newUpdates) {
+                existingHistory.add((String) update);
+            }
+
+            // 4. 합친 전체 역사를 다시 JSON으로 변환해서 저장
+            String mergedHistory = objectMapper.writeValueAsString(existingHistory);
+            
+            doc.updateText(docId, mergedHistory); 
+            documentRepository.save(doc);
+
+            // 5. Redis 비우기
+            redisTemplate.delete(key);
+            log.info("Document {} saved. Total history size: {}", docId, existingHistory.size());
+
+        } catch (Exception e) {
+            log.error("DB Save failed", e);
         }
+    }
+
+    private void saveSnapshot(String docId, String plainText) {
+        Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
+        doc.updatePlainText(plainText); // 완성된 글자 저장
+        documentRepository.save(doc);
+        log.info("Saved plain text snapshot for doc {}", docId);
+    }
     
 }
