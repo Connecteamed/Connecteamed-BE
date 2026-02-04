@@ -19,9 +19,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
 import com.connecteamed.server.domain.collaboration.service.DocumentCollaborationService;
-import com.connecteamed.server.domain.document.entity.Document;
 import com.connecteamed.server.domain.document.repository.DocumentRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -34,7 +32,6 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final DocumentRepository documentRepository; 
 
     private final DocumentCollaborationService collabService;
 
@@ -165,11 +162,4 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    private void saveSnapshot(String docId, String plainText) {
-        Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
-        doc.updatePlainText(plainText); // 완성된 글자 저장
-        documentRepository.save(doc);
-        log.info("Saved plain text snapshot for doc {}", docId);
-    }
-    
 }
