@@ -39,6 +39,7 @@ public class CollabSocketController extends TextWebSocketHandler {
     private static final Map<String, Set<WebSocketSession>> localRoomSessions = new ConcurrentHashMap<>();
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
     private static final String PREVIEW_KEY_PREFIX = "doc:preview:";
+    private static final String YJS_SNAPSHOT_KEY_PREFIX = "doc:snapshot:";
 
     // 1. 소켓 연결 시
     @Override
@@ -86,10 +87,21 @@ public class CollabSocketController extends TextWebSocketHandler {
         //     collabService.savePlainTextSnapshot(docId, msg.getPayload());
         // }
 
+        // ★ [수정됨] 스냅샷 저장 로직 (Text + Yjs압축 둘 다 Redis에 임시 저장)
         if ("SAVE_SNAPSHOT".equals(msg.getType())) {
-            String key = PREVIEW_KEY_PREFIX + docId;
-            redisTemplate.opsForValue().set(key, msg.getPayload(), 24, TimeUnit.HOURS);
-            log.debug("Cached plain text snapshot to Redis for doc {}", docId);
+            // 1. 사람이 읽는 텍스트 (Plain Text) -> doc:preview:{id}
+            if (msg.getPayload() != null) {
+                String previewKey = PREVIEW_KEY_PREFIX + docId;
+                redisTemplate.opsForValue().set(previewKey, msg.getPayload(), 24, TimeUnit.HOURS);
+            }
+
+            // 2. 기계가 읽는 압축 데이터 (Compressed Yjs) -> doc:snapshot:{id}
+            // 이게 있어야 DB 용량이 획기적으로 줄어듭니다!
+            if (msg.getContent() != null) {
+                String snapshotKey = YJS_SNAPSHOT_KEY_PREFIX + docId;
+                redisTemplate.opsForValue().set(snapshotKey, msg.getContent(), 24, TimeUnit.HOURS);
+                log.debug("Cached compressed Yjs snapshot for doc {}", docId);
+            }
         }
     }
 
@@ -187,28 +199,29 @@ public class CollabSocketController extends TextWebSocketHandler {
     }
 
     // 6. DB 저장 메서드 수정
+    // === saveRedisToDb (DB에 저장할 때) ===
     private void saveRedisToDb(String docId) {
         String historyKey = HISTORY_KEY_PREFIX + docId;
-        String previewKey = PREVIEW_KEY_PREFIX + docId; // ★ 추가
+        String previewKey = PREVIEW_KEY_PREFIX + docId;
+        String snapshotKey = YJS_SNAPSHOT_KEY_PREFIX + docId; // ★ 추가
 
-        // 1. Redis에서 변경분 가져오기
+        // Redis에서 데이터 3종 세트 가져오기
         List<Object> newUpdates = redisTemplate.opsForList().range(historyKey, 0, -1);
-        
-        // ★ [추가] Redis에서 최신 스냅샷(Plain Text) 가져오기
-        String latestSnapshot = (String) redisTemplate.opsForValue().get(previewKey);
+        String latestPreview = (String) redisTemplate.opsForValue().get(previewKey);
+        String compressedYjs = (String) redisTemplate.opsForValue().get(snapshotKey); // ★ 가져오기
 
-        // 변경사항이나 스냅샷이 있을 때만 저장 시도
-        if ((newUpdates != null && !newUpdates.isEmpty()) || latestSnapshot != null) {
+        // 저장할 게 하나라도 있으면 실행
+        if ((newUpdates != null && !newUpdates.isEmpty()) || latestPreview != null || compressedYjs != null) {
             
-            // Service에게 저장 위임 (히스토리 + 스냅샷 같이 넘김)
-            // 메서드 시그니처를 바꿔야 합니다 (아래 서비스 코드 참고)
-            collabService.saveAndFlushHistory(docId, newUpdates, latestSnapshot);
+            // 서비스 호출 (압축 데이터 compressedYjs 도 같이 넘김)
+            collabService.saveAndFlushHistory(docId, newUpdates, latestPreview, compressedYjs);
             
             // Redis 청소
             redisTemplate.delete(historyKey);
-            redisTemplate.delete(previewKey); // ★ 스냅샷 키도 삭제
-            
-            log.info("Saved DB (History & Snapshot) for doc {}", docId);
+            redisTemplate.delete(previewKey);
+            redisTemplate.delete(snapshotKey); // ★ 추가
+
+            log.info("Saved DB for doc {}", docId);
         }
     }
 
