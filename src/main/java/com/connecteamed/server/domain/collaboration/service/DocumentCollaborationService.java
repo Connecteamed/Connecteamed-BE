@@ -38,43 +38,45 @@ public class DocumentCollaborationService {
      * @Transactional: 트랜잭션 범위 안에서 Dirty Checking으로 저장
      */
     @Transactional
-    public void saveAndFlushHistory(String docId, List<Object> newUpdates) {
-        if (newUpdates == null || newUpdates.isEmpty()) return;
+    public void saveAndFlushHistory(String docId, List<Object> newUpdates, String latestSnapshot) {
+        // 1. 업데이트할 게 없으면 리턴
+        if ((newUpdates == null || newUpdates.isEmpty()) && latestSnapshot == null) return;
 
         try {
             Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
             
-            // 1. 기존 DB 히스토리 가져오기
-            List<String> existingHistory = new ArrayList<>();
-            String dbContent = doc.getContent();
+            // === A. 히스토리(Yjs) 병합 저장 ===
+            if (newUpdates != null && !newUpdates.isEmpty()) {
+                List<String> existingHistory = new ArrayList<>();
+                String dbContent = doc.getContent();
 
-            if (dbContent != null && !dbContent.isEmpty()) {
-                try {
-                    // JSON Array 파싱 시도
-                    if (dbContent.trim().startsWith("[")) {
-                        existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
-                    } 
-                } catch (Exception e) {
-                    log.warn("Failed to parse DB history for doc {}. Starting fresh.", docId);
+                if (dbContent != null && !dbContent.isEmpty()) {
+                    try {
+                        if (dbContent.trim().startsWith("[")) {
+                            existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
+                        } 
+                    } catch (Exception e) {
+                        log.warn("Failed to parse DB history for doc {}.", docId);
+                    }
                 }
+                for (Object update : newUpdates) {
+                    existingHistory.add((String) update);
+                }
+                String mergedHistory = objectMapper.writeValueAsString(existingHistory);
+                doc.updateContent(mergedHistory);
             }
 
-            // 2. 새로운 변경분 병합 (Append)
-            for (Object update : newUpdates) {
-                existingHistory.add((String) update);
+            // === B. ★ [추가] 스냅샷(Plain Text) 저장 ===
+            // Redis에 저장된 최신 텍스트가 있다면 DB에 반영
+            if (latestSnapshot != null) {
+                doc.updatePlainText(latestSnapshot);
             }
-
-            // 3. 다시 JSON으로 변환
-            String mergedHistory = objectMapper.writeValueAsString(existingHistory);
-
-            // 4. 엔티티 업데이트 (자동 저장)
-            doc.updateContent(mergedHistory);
             
-            log.info("Merged history saved for doc {}. Total size: {}", docId, existingHistory.size());
+            // Dirty Checking으로 commit 시점에 자동 저장됨
 
         } catch (Exception e) {
-            log.error("Failed to save history for doc {}", docId, e);
-            throw new RuntimeException("History Save Failed", e); // 예외를 던져야 롤백됨
+            log.error("Failed to save doc {}", docId, e);
+            throw new RuntimeException("Save Failed", e);
         }
     }
 
