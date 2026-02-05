@@ -279,7 +279,21 @@
 
     function sendSnapshot() {
         if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: "SAVE_SNAPSHOT", docId: myDocId, payload: editor.value }));
+            // 1. 사람용 텍스트 (기존)
+            const plainText = editor.value;
+
+            // 2. ★ [핵심] Yjs 데이터를 하나로 압축 (Encode State As Update)
+            // 문서의 모든 히스토리를 하나의 Uint8Array로 만듭니다.
+            const stateUpdate = Y.encodeStateAsUpdate(ydoc);
+            const compressedContent = toBase64(stateUpdate); // Base64 문자열 하나로 변환
+
+            const msg = {
+                type: "SAVE_SNAPSHOT",
+                docId: myDocId,
+                payload: plainText,     // 사람용
+                content: compressedContent // ★ 기계용 (압축된 Yjs 데이터)
+            };
+            ws.send(JSON.stringify(msg));
         }
     }
 </script>
