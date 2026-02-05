@@ -40,8 +40,7 @@ public class CollabSocketController extends TextWebSocketHandler {
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
     private static final String PREVIEW_KEY_PREFIX = "doc:preview:";
 
-    // === 1. 소켓 연결 시 (세션 등록만! 데이터 전송 X) ===
-// === 1. 소켓 연결 시 ===
+    // 1. 소켓 연결 시
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String path = session.getUri().getPath();
@@ -64,7 +63,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         broadcastUserList(docId);
     }
 
-    // === 2. 메시지 처리 ===
+    // 2. 메시지 처리
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         SocketMessage msg = objectMapper.readValue(message.getPayload(), SocketMessage.class);
@@ -94,7 +93,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    // === 3. 퇴장 시 ===
+    // 3. 퇴장 시
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String docId = (String) session.getAttributes().get("docId");
@@ -133,7 +132,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    // === 4. Redis Pub/Sub 브로드캐스트 ===
+    // 4. Redis Pub/Sub 브로드캐스트
     public void broadcastToLocal(SocketMessage msg) {
         Set<WebSocketSession> sessions = localRoomSessions.get(msg.getDocId());
         if (sessions != null) {
@@ -187,7 +186,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         redisTemplate.expire(key, 24, TimeUnit.HOURS); 
     }
 
-    // === 4. DB 저장 메서드 수정 ===
+    // 6. DB 저장 메서드 수정
     private void saveRedisToDb(String docId) {
         String historyKey = HISTORY_KEY_PREFIX + docId;
         String previewKey = PREVIEW_KEY_PREFIX + docId; // ★ 추가
@@ -213,7 +212,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    // 접속자 명단 전송 메서드
+    // 7.접속자 명단 전송 메서드
     private void broadcastUserList(String docId) {
         Set<Object> users = presenceService.getUsers("doc", docId);
         
