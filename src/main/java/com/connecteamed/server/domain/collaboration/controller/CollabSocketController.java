@@ -1,7 +1,6 @@
 package com.connecteamed.server.domain.collaboration.controller;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -18,8 +17,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
+import com.connecteamed.server.domain.collaboration.dto.UserPresenceDto;
 import com.connecteamed.server.domain.collaboration.service.DocumentCollaborationService;
-import com.connecteamed.server.domain.document.repository.DocumentRepository;
+import com.connecteamed.server.domain.collaboration.service.PresenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +32,7 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final  PresenceService presenceService;
 
     private final DocumentCollaborationService collabService;
 
@@ -39,18 +40,27 @@ public class CollabSocketController extends TextWebSocketHandler {
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
 
     // === 1. 소켓 연결 시 (세션 등록만! 데이터 전송 X) ===
+// === 1. 소켓 연결 시 ===
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String path = session.getUri().getPath();
         String docId = path.substring(path.lastIndexOf('/') + 1);
         session.getAttributes().put("docId", docId);
+        
+        // ★ [추가] Interceptor에서 넣어둔 유저 정보 가져오기
+        UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
+
+        if (user != null) {
+            // Redis 출석부에 등록 (문서별 접속자 관리)
+            presenceService.addUser("doc", docId, user);
+            log.info("User {} entered doc {}", user.getUserId(), docId);
+        }
 
         // 방 세션에 추가
         localRoomSessions.computeIfAbsent(docId, k -> Collections.synchronizedSet(new HashSet<>())).add(session);
         
-        log.info("Session connected: {}", session.getId());
-        // ★ 삭제됨: 여기서 loadFromDbToRedis나 sendHistoryToUser를 호출하지 마세요.
-        // 클라이언트가 보내는 "JOIN" 메시지에서 처리해야 순서가 꼬이지 않습니다.
+        // ★ [추가] 입장했으니 최신 접속자 목록을 모두에게 알림
+        broadcastUserList(docId);
     }
 
     // === 2. 메시지 처리 ===
@@ -77,20 +87,29 @@ public class CollabSocketController extends TextWebSocketHandler {
         }
     }
 
-    // === 3. 퇴장 시 ===
+// === 3. 퇴장 시 ===
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String docId = (String) session.getAttributes().get("docId");
+        UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
         Set<WebSocketSession> sessions = localRoomSessions.get(docId);
 
         if (sessions != null) {
             sessions.remove(session);
             
+            // ★ [추가] Redis 출석부에서 제거
+            if (user != null) {
+                presenceService.removeUser("doc", docId, user);
+            }
+
             // 마지막 사람이 나가면 DB 저장
             if (sessions.isEmpty()) {
                 log.info("Last user left doc {}. Saving...", docId);
                 saveRedisToDb(docId);
                 localRoomSessions.remove(docId);
+            } else {
+                // 아직 사람이 남아있다면, 갱신된 접속자 목록 전송
+                broadcastUserList(docId);
             }
         }
     }
@@ -159,6 +178,23 @@ public class CollabSocketController extends TextWebSocketHandler {
             
             // 2. 저장이 성공했으면 Redis 비우기
             redisTemplate.delete(key);
+        }
+    }
+
+    // 접속자 명단 전송 메서드
+    private void broadcastUserList(String docId) {
+        Set<Object> users = presenceService.getUsers("doc", docId);
+        
+        SocketMessage msg = new SocketMessage();
+        msg.setType("PRESENCE_UPDATE"); // 클라이언트가 처리할 타입
+        msg.setDocId(docId);
+        try {
+            msg.setPayload(objectMapper.writeValueAsString(users)); // 유저 목록 JSON
+            
+            // Redis Pub/Sub으로 전송 (그래야 다른 서버에 붙은 유저도 알 수 있음)
+            redisTemplate.convertAndSend("doc-channel", msg);
+        } catch (Exception e) {
+            log.error("Presence broadcast failed", e);
         }
     }
 
