@@ -40,6 +40,9 @@ public class Task extends BaseEntity {
     @Column(name="content",nullable = false,columnDefinition = "TEXT")
     private String content;
 
+    @Column(name="result", columnDefinition = "TEXT")
+    private String result;
+
     @Enumerated(EnumType.STRING)
     @Column(name="status",nullable = false)
     @Builder.Default
@@ -58,9 +61,10 @@ public class Task extends BaseEntity {
         this.status = status;
     }
 
-    public void updateInfo(String name, String content) {
+    public void updateInfo(String name, String content, String result) {
         this.name = name;
         this.content = content;
+        this.result = result;
     }
 
     @PrePersist
