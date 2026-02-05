@@ -2,61 +2,85 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Connecteamed: Presence & Auth Test</title>
+    <title>Connecteamed: Auto-Login & Presence Test</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f9fafb; }
-        h1 { color: #111827; margin-bottom: 10px; }
+        h1 { color: #111827; margin-bottom: 20px; }
         
-        /* 컨트롤 패널 스타일 */
-        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .input-group { margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .input-group label { font-weight: 600; font-size: 14px; color: #374151; }
-        input[type="text"] { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        /* 섹션 공통 스타일 */
+        .section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .section h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-size: 16px; color: #374151; }
         
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
-        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        #connectBtn { background-color: #4f46e5; color: white; }
-        #connectBtn:hover { background-color: #4338ca; }
-        #disconnectBtn { background-color: #ef4444; color: white; display: none; }
-        #disconnectBtn:hover { background-color: #dc2626; }
+        /* 로그인 섹션 (초록 테마) */
+        .login-section { border-left: 5px solid #10b981; }
+        .login-grid { display: flex; gap: 10px; align-items: flex-end; }
+        
+        /* 연결 섹션 (파랑 테마) */
+        .connect-section { border-left: 5px solid #4f46e5; }
+        
+        .input-group { flex: 1; display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+        .input-group label { font-weight: 600; font-size: 13px; color: #4b5563; }
+        input[type="text"], input[type="password"] { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        input:focus { outline: none; border-color: #4f46e5; ring: 2px solid #4f46e5; }
 
-        /* 접속자 목록 (Presence) 스타일 */
+        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: opacity 0.2s; color: white; white-space: nowrap; }
+        button:hover { opacity: 0.9; }
+        
+        #loginBtn { background-color: #10b981; height: 42px; } /* Green */
+        #connectBtn { background-color: #4f46e5; } /* Blue */
+        #disconnectBtn { background-color: #ef4444; display: none; } /* Red */
+
+        /* 접속자 목록 & 에디터 */
         .presence-container { background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c7d2fe; }
-        .presence-title { font-size: 12px; font-weight: bold; color: #4338ca; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .presence-title { font-size: 12px; font-weight: bold; color: #4338ca; margin-bottom: 8px; text-transform: uppercase; }
         #userList { display: flex; gap: 8px; flex-wrap: wrap; }
         .user-avatar { display: flex; align-items: center; gap: 6px; background: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-size: 13px; font-weight: 500; color: #374151; }
         .user-dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; }
 
-        /* 에디터 및 로그 */
         .container { display: flex; gap: 20px; }
         .box { flex: 1; background: white; border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        h3 { margin-top: 0; color: #374151; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; margin-bottom: 10px; }
         textarea { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; line-height: 1.6; resize: none; font-family: monospace; min-height: 400px; }
-        textarea:focus { outline: none; border-color: #4f46e5; ring: 2px solid #4f46e5; }
-        
         #log { background: #1f2937; color: #10b981; height: 400px; overflow-y: scroll; font-size: 12px; padding: 15px; border-radius: 6px; font-family: monospace; }
         .log-item { margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 2px; }
-        .log-in { color: #60a5fa; } 
-        .log-out { color: #f472b6; }
-        .log-sys { color: #fbbf24; }
+        .log-in { color: #60a5fa; } .log-out { color: #f472b6; } .log-sys { color: #fbbf24; }
     </style>
 </head>
 <body>
 
-<h1>🚀 Connecteamed 협업 테스트</h1>
+<h1>🚀 Connecteamed 통합 테스트</h1>
 
-<div class="controls">
-    <div class="input-group">
-        <label>JWT Token (로그인 후 받은 토큰):</label>
-        <input type="text" id="tokenInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+<div class="section login-section">
+    <h3>🔐 1. 로그인 (API 호출)</h3>
+    <div class="login-grid">
+        <div class="input-group">
+            <label>Login ID</label>
+            <input type="text" id="loginIdInput" value="string1" placeholder="아이디">
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="passwordInput" value="string1" placeholder="비밀번호">
+        </div>
+        <div class="input-group" style="flex: 0;">
+            <button id="loginBtn">로그인 & 토큰 받기</button>
+        </div>
     </div>
+</div>
+
+<div class="section connect-section">
+    <h3>🔗 2. 문서 연결 (WebSocket)</h3>
     <div class="input-group">
-        <label>Doc ID (문서 번호):</label>
-        <input type="text" id="docIdInput" value="1">
+        <label>JWT Token (로그인 시 자동 입력됨)</label>
+        <input type="text" id="tokenInput" placeholder="로그인 버튼을 누르면 자동으로 채워집니다..." readonly style="background-color: #f3f4f6;">
     </div>
-    <div class="btn-group">
-        <button id="connectBtn">연결 (Connect)</button>
-        <button id="disconnectBtn">연결 종료 (Disconnect)</button>
+    <div class="login-grid">
+        <div class="input-group">
+            <label>Doc ID (문서 번호)</label>
+            <input type="text" id="docIdInput" value="1">
+        </div>
+        <div class="input-group" style="flex: 0;">
+            <button id="connectBtn">소켓 연결</button>
+            <button id="disconnectBtn">연결 종료</button>
+        </div>
     </div>
 </div>
 
@@ -69,11 +93,11 @@
 
 <div class="container">
     <div class="box">
-        <h3>📝 실시간 에디터</h3>
+        <h3>📝 에디터</h3>
         <textarea id="editor" placeholder="연결되면 내용을 불러옵니다..."></textarea>
     </div>
     <div class="box">
-        <h3>📊 시스템 로그</h3>
+        <h3>📊 로그</h3>
         <div id="log"></div>
     </div>
 </div>
@@ -81,34 +105,76 @@
 <script type="module">
     import * as Y from 'https://esm.sh/yjs@13.6.14';
 
-    // === 상태 변수 ===
+    // === 전역 변수 ===
     let ws = null;
     let ydoc = null;
     let ytext = null;
     let myDocId = null;
 
     // === DOM 요소 ===
-    const logDiv = document.getElementById('log');
-    const editor = document.getElementById('editor');
-    const userListDiv = document.getElementById('userList');
-    const userCountSpan = document.getElementById('userCount');
+    const loginIdInput = document.getElementById('loginIdInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    
+    const tokenInput = document.getElementById('tokenInput');
+    const docIdInput = document.getElementById('docIdInput');
     const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
+    
+    const editor = document.getElementById('editor');
+    const logDiv = document.getElementById('log');
+    const userListDiv = document.getElementById('userList');
+    const userCountSpan = document.getElementById('userCount');
+
+    // === [신규] 로그인 로직 ===
+    loginBtn.onclick = async () => {
+        const loginId = loginIdInput.value;
+        const password = passwordInput.value;
+
+        if(!loginId || !password) {
+            alert("아이디와 비밀번호를 입력하세요.");
+            return;
+        }
+
+        log(`Logging in as ${loginId}...`, 'sys');
+
+        try {
+            const response = await fetch('http://localhost:8080/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ loginId, password })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                const accessToken = data.data.accessToken;
+                tokenInput.value = accessToken; // 토큰 자동 입력
+                log(`Login Successful! MemberID: ${data.data.memberId}`, 'sys');
+                // 편의를 위해 바로 연결 버튼 포커스
+                connectBtn.focus();
+            } else {
+                log(`Login Failed: ${data.message}`, 'sys');
+                alert("로그인 실패: " + data.message);
+            }
+
+        } catch (e) {
+            console.error(e);
+            log("Login Error (Check Console/CORS)", 'sys');
+            alert("서버 연결 실패. (CORS 설정을 확인하세요)");
+        }
+    };
 
     // === 유틸리티 ===
     function toBase64(u8) { return btoa(String.fromCharCode(...u8)); }
     function fromBase64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
-
-    function log(msg, type = 'info') {
+    function log(msg, type='info') {
         const div = document.createElement('div');
         div.className = 'log-item';
-        const time = new Date().toLocaleTimeString();
-        let icon = 'ℹ️';
-        if(type === 'in') icon = '⬇️';
-        if(type === 'out') icon = '⬆️';
-        if(type === 'sys') icon = '⚠️';
-        
-        div.innerHTML = `<span style="color:#9ca3af">[${time}]</span> <span class="${type === 'sys' ? 'log-sys' : (type === 'in' ? 'log-in' : 'log-out')}">${icon} ${msg}</span>`;
+        div.innerHTML = `<span class="${type === 'sys' ? 'log-sys' : (type === 'in' ? 'log-in' : 'log-out')}">${msg}</span>`;
         logDiv.prepend(div);
     }
 
@@ -116,12 +182,6 @@
     function renderPresence(users) {
         userListDiv.innerHTML = '';
         userCountSpan.textContent = users.length;
-        
-        if (users.length === 0) {
-            userListDiv.innerHTML = '<span style="color: #6b7280; font-size: 13px;">접속자가 없습니다.</span>';
-            return;
-        }
-
         users.forEach(user => {
             const el = document.createElement('div');
             el.className = 'user-avatar';
@@ -132,22 +192,17 @@
 
     // === 연결 로직 ===
     connectBtn.onclick = () => {
-        const token = document.getElementById('tokenInput').value.trim();
-        const docId = document.getElementById('docIdInput').value.trim();
-        
-        if (!token) {
-            alert("JWT 토큰을 입력해주세요!");
-            return;
-        }
+        const token = tokenInput.value.trim();
+        const docId = docIdInput.value.trim();
 
+        if (!token) { alert("먼저 로그인을 진행해주세요!"); return; }
         if (ws) { ws.close(); }
-        myDocId = docId;
 
-        // 1. Yjs 초기화
+        myDocId = docId;
         ydoc = new Y.Doc();
         ytext = ydoc.getText('content');
 
-        // 2. 바인딩 (Yjs -> Editor)
+        // 바인딩
         ytext.observe(() => {
             if (editor.value !== ytext.toString()) {
                 const pos = editor.scrollTop;
@@ -156,124 +211,77 @@
             }
         });
 
-        // 3. 바인딩 (Editor -> Yjs)
         editor.oninput = () => {
             ydoc.transact(() => {
                 ytext.delete(0, ytext.length);
                 ytext.insert(0, editor.value);
             });
-            // 주의: 타이핑 시에는 SAVE_SNAPSHOT 보내지 않음 (최적화)
         };
 
-        // 4. Yjs 업데이트 전송
         ydoc.on('update', (update, origin) => {
             if (origin !== 'ws' && ws && ws.readyState === WebSocket.OPEN) {
-                const msg = {
-                    type: "UPDATE",
-                    docId: myDocId,
-                    payload: toBase64(update)
-                };
-                ws.send(JSON.stringify(msg));
+                ws.send(JSON.stringify({ type: "UPDATE", docId: myDocId, payload: toBase64(update) }));
             }
         });
 
-        // 5. WebSocket 연결 (쿼리 파라미터로 토큰 전달)
-        // 주의: ws://localhost:8080/ws/docs/{docId}?token={jwt}
+        // 소켓 연결
         const wsUrl = `ws://localhost:8080/ws/docs/${docId}?token=${token}`;
-        log(`Connecting to ${wsUrl}...`, 'sys');
-        
+        log(`Connecting...`, 'sys');
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-            log("WebSocket Connected!", 'sys');
+            log("Connected!", 'sys');
             connectBtn.style.display = 'none';
             disconnectBtn.style.display = 'inline-block';
-            
-            // 입장 메시지
             ws.send(JSON.stringify({ type: "JOIN", docId: myDocId }));
         };
 
         ws.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-
-                // [1] 초기 로딩
-                if (msg.type === "INITIAL_LOAD") {
-                    log("Loaded DB content", 'in');
-                    let applied = false;
-                    try {
-                        const parsed = JSON.parse(msg.payload);
-                        if (Array.isArray(parsed)) {
-                            ydoc.transact(() => {
-                                parsed.forEach(u => Y.applyUpdate(ydoc, fromBase64(u), 'ws'));
-                            });
-                            applied = true;
-                            log(`Replayed ${parsed.length} updates`, 'in');
-                        }
-                    } catch(e) {}
-
-                    if (!applied) {
-                        ydoc.transact(() => {
-                            ytext.delete(0, ytext.length);
-                            ytext.insert(0, msg.payload);
-                        }, 'ws');
-                    }
-                } 
-                // [2] 실시간 편집
-                else if (msg.type === "UPDATE") {
-                    Y.applyUpdate(ydoc, fromBase64(msg.payload), 'ws');
-                } 
-                // [3] 접속자 목록 업데이트 (Presence)
-                else if (msg.type === "PRESENCE_UPDATE") {
-                    const users = JSON.parse(msg.payload);
-                    log(`Presence Update: ${users.length} users`, 'in');
-                    renderPresence(users);
+            const msg = JSON.parse(event.data);
+            if (msg.type === "INITIAL_LOAD") {
+                log("DB Loaded", 'in');
+                try {
+                    const parsed = JSON.parse(msg.payload);
+                    if (Array.isArray(parsed)) {
+                        ydoc.transact(() => parsed.forEach(u => Y.applyUpdate(ydoc, fromBase64(u), 'ws')));
+                    } else { throw new Error(); }
+                } catch {
+                    ydoc.transact(() => { ytext.delete(0, ytext.length); ytext.insert(0, msg.payload); }, 'ws');
                 }
-
-            } catch (e) {
-                console.error(e);
-                log("Error processing message", 'sys');
+            } else if (msg.type === "UPDATE") {
+                Y.applyUpdate(ydoc, fromBase64(msg.payload), 'ws');
+            } else if (msg.type === "PRESENCE_UPDATE") {
+                const users = JSON.parse(msg.payload);
+                log(`Users: ${users.length}`, 'in');
+                renderPresence(users);
             }
         };
 
-        ws.onclose = (e) => {
-            log(`Disconnected (Code: ${e.code})`, 'sys');
+        ws.onclose = () => {
+            log("Disconnected", 'sys');
             connectBtn.style.display = 'inline-block';
             disconnectBtn.style.display = 'none';
-            userListDiv.innerHTML = '<span style="color:#6b7280">연결 끊김</span>';
-            userCountSpan.textContent = '0';
+            userListDiv.innerHTML = '<span>연결 끊김</span>';
             ws = null;
         };
     };
 
-    // === 연결 종료 ===
     disconnectBtn.onclick = () => {
-        if (ws) {
-            // 종료 전 스냅샷 저장 시도
+        if(ws) {
             sendSnapshot();
             ws.close();
         }
     };
 
-    // === 창 닫기/새로고침 시 자동 저장 ===
     window.addEventListener("beforeunload", () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            sendSnapshot();
-        }
+        if (ws && ws.readyState === WebSocket.OPEN) sendSnapshot();
     });
 
     function sendSnapshot() {
         if (ws && ws.readyState === WebSocket.OPEN) {
-            const msg = {
-                type: "SAVE_SNAPSHOT",
-                docId: myDocId,
-                payload: editor.value
-            };
-            ws.send(JSON.stringify(msg));
-            console.log("Sent Snapshot");
+            ws.send(JSON.stringify({ type: "SAVE_SNAPSHOT", docId: myDocId, payload: editor.value }));
         }
     }
-
 </script>
 </body>
 </html>
