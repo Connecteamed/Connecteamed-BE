@@ -38,6 +38,7 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private static final Map<String, Set<WebSocketSession>> localRoomSessions = new ConcurrentHashMap<>();
     private static final String HISTORY_KEY_PREFIX = "doc:history:";
+    private static final String PREVIEW_KEY_PREFIX = "doc:preview:";
 
     // === 1. 소켓 연결 시 (세션 등록만! 데이터 전송 X) ===
 // === 1. 소켓 연결 시 ===
@@ -81,36 +82,54 @@ public class CollabSocketController extends TextWebSocketHandler {
             redisTemplate.convertAndSend("doc-channel", msg);
         }
 
+        // if ("SAVE_SNAPSHOT".equals(msg.getType())) {
+        //     // Service에게 위임
+        //     collabService.savePlainTextSnapshot(docId, msg.getPayload());
+        // }
+
         if ("SAVE_SNAPSHOT".equals(msg.getType())) {
-            // Service에게 위임
-            collabService.savePlainTextSnapshot(docId, msg.getPayload());
+            String key = PREVIEW_KEY_PREFIX + docId;
+            redisTemplate.opsForValue().set(key, msg.getPayload(), 24, TimeUnit.HOURS);
+            log.debug("Cached plain text snapshot to Redis for doc {}", docId);
         }
     }
 
-// === 3. 퇴장 시 ===
+    // === 3. 퇴장 시 ===
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String docId = (String) session.getAttributes().get("docId");
         UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
+        
+        // 1. 로컬 세션 정리
         Set<WebSocketSession> sessions = localRoomSessions.get(docId);
-
         if (sessions != null) {
             sessions.remove(session);
-            
-            // ★ [추가] Redis 출석부에서 제거
-            if (user != null) {
-                presenceService.removeUser("doc", docId, user);
-            }
-
-            // 마지막 사람이 나가면 DB 저장
             if (sessions.isEmpty()) {
-                log.info("Last user left doc {}. Saving...", docId);
-                saveRedisToDb(docId);
                 localRoomSessions.remove(docId);
-            } else {
-                // 아직 사람이 남아있다면, 갱신된 접속자 목록 전송
-                broadcastUserList(docId);
             }
+        }
+
+        // 2. Redis 출석부에서 유저 제거
+        if (user != null) {
+            presenceService.removeUser("doc", docId, user);
+        }
+
+        // 3. [핵심 로직 변경]
+        // "내 서버"의 세션이 비었는지가 아니라, "Redis(전체 서버)"에 아무도 없는지 확인
+        Set<Object> remainingUsers = presenceService.getUsers("doc", docId);
+
+        if (remainingUsers == null || remainingUsers.isEmpty()) {
+            log.info("Users count is 0 for doc {}. Saving Yjs History to DB...", docId);
+            
+            // ★ 여기서 저장하는 건 "Yjs 히스토리(content)" 입니다.
+            // plain_text는 위에서 SAVE_SNAPSHOT 메시지로 이미 저장되었을 겁니다.
+            saveRedisToDb(docId); 
+            
+            // (선택) Presence 키 삭제 (깔끔하게)
+            // redisTemplate.delete("presence:doc:" + docId);
+        } else {
+            // 아직 누군가 남아있으면 접속자 목록 갱신 방송
+            broadcastUserList(docId);
         }
     }
 
@@ -168,16 +187,29 @@ public class CollabSocketController extends TextWebSocketHandler {
         redisTemplate.expire(key, 24, TimeUnit.HOURS); 
     }
 
+    // === 4. DB 저장 메서드 수정 ===
     private void saveRedisToDb(String docId) {
-        String key = HISTORY_KEY_PREFIX + docId;
-        List<Object> newUpdates = redisTemplate.opsForList().range(key, 0, -1);
+        String historyKey = HISTORY_KEY_PREFIX + docId;
+        String previewKey = PREVIEW_KEY_PREFIX + docId; // ★ 추가
+
+        // 1. Redis에서 변경분 가져오기
+        List<Object> newUpdates = redisTemplate.opsForList().range(historyKey, 0, -1);
         
-        if (newUpdates != null && !newUpdates.isEmpty()) {
-            // 1. Service에게 저장 위임 (트랜잭션 안전)
-            collabService.saveAndFlushHistory(docId, newUpdates);
+        // ★ [추가] Redis에서 최신 스냅샷(Plain Text) 가져오기
+        String latestSnapshot = (String) redisTemplate.opsForValue().get(previewKey);
+
+        // 변경사항이나 스냅샷이 있을 때만 저장 시도
+        if ((newUpdates != null && !newUpdates.isEmpty()) || latestSnapshot != null) {
             
-            // 2. 저장이 성공했으면 Redis 비우기
-            redisTemplate.delete(key);
+            // Service에게 저장 위임 (히스토리 + 스냅샷 같이 넘김)
+            // 메서드 시그니처를 바꿔야 합니다 (아래 서비스 코드 참고)
+            collabService.saveAndFlushHistory(docId, newUpdates, latestSnapshot);
+            
+            // Redis 청소
+            redisTemplate.delete(historyKey);
+            redisTemplate.delete(previewKey); // ★ 스냅샷 키도 삭제
+            
+            log.info("Saved DB (History & Snapshot) for doc {}", docId);
         }
     }
 
