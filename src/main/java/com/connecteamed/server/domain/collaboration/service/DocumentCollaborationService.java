@@ -37,16 +37,37 @@ public class DocumentCollaborationService {
      * [저장] Redis의 변경분(newUpdates)을 기존 DB 히스토리와 병합하여 저장
      * @Transactional: 트랜잭션 범위 안에서 Dirty Checking으로 저장
      */
+/**
+     * [저장] Redis의 데이터(History/Snapshot)를 DB에 반영
+     * @param compressedYjs : 클라이언트가 압축해서 보낸 Yjs 상태 (있으면 이걸로 덮어쓰기 - 최적화)
+     */
     @Transactional
-    public void saveAndFlushHistory(String docId, List<Object> newUpdates, String latestSnapshot) {
-        // 1. 업데이트할 게 없으면 리턴
-        if ((newUpdates == null || newUpdates.isEmpty()) && latestSnapshot == null) return;
+    public void saveAndFlushHistory(String docId, List<Object> newUpdates, String latestSnapshot, String compressedYjs) {
+        // 1. 저장할 게 아무것도 없으면 리턴
+        if ((newUpdates == null || newUpdates.isEmpty()) && latestSnapshot == null && compressedYjs == null) return;
 
         try {
             Document doc = documentRepository.findById(Long.parseLong(docId)).orElseThrow();
-            
-            // === A. 히스토리(Yjs) 병합 저장 ===
-            if (newUpdates != null && !newUpdates.isEmpty()) {
+
+            // === 1. 스냅샷(Plain Text) 저장 (사람용 미리보기) ===
+            if (latestSnapshot != null) {
+                doc.updatePlainText(latestSnapshot);
+            }
+
+            // === 2. 히스토리(Yjs) 저장 (기계용 데이터) ===
+            if (compressedYjs != null) {
+                // ★ [최적화 경로] 클라이언트가 압축된 '한 방'을 줬으므로 덮어씁니다.
+                // 기존 리스트를 불러와서 합칠 필요 없이, 그냥 이거 하나만 저장하면 됩니다.
+                List<String> optimizedContent = new ArrayList<>();
+                optimizedContent.add(compressedYjs);
+                
+                String jsonContent = objectMapper.writeValueAsString(optimizedContent);
+                doc.updateContent(jsonContent);
+                
+                log.info("Optimized saved for doc {} (Overwritten with 1 compressed state)", docId);
+
+            } else if (newUpdates != null && !newUpdates.isEmpty()) {
+                // ★ [일반 경로] 압축 데이터가 없으면 기존 방식대로 '추가(Append)' 합니다.
                 List<String> existingHistory = new ArrayList<>();
                 String dbContent = doc.getContent();
 
@@ -56,23 +77,21 @@ public class DocumentCollaborationService {
                             existingHistory = objectMapper.readValue(dbContent, new TypeReference<List<String>>() {});
                         } 
                     } catch (Exception e) {
-                        log.warn("Failed to parse DB history for doc {}.", docId);
+                        log.warn("Failed to parse DB history for doc {}. Starting fresh.", docId);
                     }
                 }
+                
                 for (Object update : newUpdates) {
                     existingHistory.add((String) update);
                 }
+                
                 String mergedHistory = objectMapper.writeValueAsString(existingHistory);
                 doc.updateContent(mergedHistory);
+                
+                log.info("Appended history for doc {} (Total size: {})", docId, existingHistory.size());
             }
 
-            // === B. ★ [추가] 스냅샷(Plain Text) 저장 ===
-            // Redis에 저장된 최신 텍스트가 있다면 DB에 반영
-            if (latestSnapshot != null) {
-                doc.updatePlainText(latestSnapshot);
-            }
-            
-            // Dirty Checking으로 commit 시점에 자동 저장됨
+            // Dirty Checking으로 트랜잭션 종료 시 자동 Commit
 
         } catch (Exception e) {
             log.error("Failed to save doc {}", docId, e);
