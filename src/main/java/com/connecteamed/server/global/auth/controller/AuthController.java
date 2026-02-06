@@ -13,10 +13,13 @@ import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -128,4 +131,51 @@ public class AuthController {
 
         return ApiResponse.onSuccess(AuthSuccessCode.REISSUE_SUCCESS, result);
     }
+
+
+    @Operation(
+            summary = "구글 로그인",
+            description =
+                    """
+                            이 API는 `Try it out` 으로 테스트가 불가능합니다. 테스트 필요시 브라우저 주소창에 직접 입력하여 접근하세요.
+                            
+                            ---\s
+                            Redirect URL: {FRONT_URL}/login/callback
+                            
+                            성공 시 전달 파라미터 (Redirect Query String)
+                            | 파라미터명 | 타입 | 설명 | 예시 |
+                            | :--- | :--- | :--- | :--- |
+                            | **memberId** | Long | 사용자 식별자 | 1 |
+                            | **accessToken** | String | API 인증용 토큰 | eyJhbGci... |
+                            | **refreshToken** | String | 토큰 갱신용 토큰 | eyJhbGci... |
+                            | **grantType** | String | 인증타입 | Bearer |
+                            | **expiresIn** | Long | 만료 시간(초) | 14400 |
+                            ---"""
+    )
+    @GetMapping("/api/auth/login/google")
+    public void googleLogin() {}
+
+    @Operation(
+            summary = "카카오 로그인",
+            description =
+                    """
+                            이 API는 `Try it out` 으로 테스트가 불가능합니다. 테스트 필요시 브라우저 주소창에 직접 입력하여 접근하세요.
+                            
+                            ---\s
+                            Redirect URL: {FRONT_URL}/login/callback
+                            
+                            성공 시 전달 파라미터 (Redirect Query String)
+                            | 파라미터명 | 타입 | 설명 | 예시 |
+                            | :--- | :--- | :--- | :--- |
+                            | **memberId** | Long | 사용자 식별자 | 1 |
+                            | **accessToken** | String | API 인증용 토큰 | eyJhbGci... |
+                            | **refreshToken** | String | 토큰 갱신용 토큰 | eyJhbGci... |
+                            | **grantType** | String | 인증타입 | Bearer |
+                            | **expiresIn** | Long | 만료 시간(초) | 14400 |
+                            ---"""
+    )
+    @GetMapping("/api/auth/login/kakao")
+    public void kakaoLogin() {}
+
+
 }
