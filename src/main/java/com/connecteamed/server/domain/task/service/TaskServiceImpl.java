@@ -142,10 +142,13 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
+        Long currentMemberId = getCurrentUserId();
+        validateProjectAccess(task.getProject().getId(), currentMemberId);
+
         TaskStatus oldStatus = task.getStatus();
         task.changeStatus(req.status());
 
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(currentMemberId,
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 다시 진행 중 or 완료
@@ -161,6 +164,8 @@ public class TaskServiceImpl implements TaskService {
     public void updateTaskSchedule(Long taskId, TaskScheduleUpdateReq req) {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
+
+        validateProjectAccess(task.getProject().getId(), getCurrentUserId());
 
         if (req.startDate().isAfter(req.dueDate())) {
             throw new TaskException(TaskErrorCode.INVALID_SCHEDULE);
@@ -182,6 +187,7 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
         Long projectId = task.getProject().getId();
+        validateProjectAccess(projectId, getCurrentUserId());
 
         taskAssigneeRepository.deleteAllByTask(task);
 
@@ -200,6 +206,8 @@ public class TaskServiceImpl implements TaskService {
     public void deleteTask(Long taskId) {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
+
+        validateProjectAccess(task.getProject().getId(), getCurrentUserId());
 
         task.softDelete();
     }
@@ -253,5 +261,11 @@ public class TaskServiceImpl implements TaskService {
         return memberRepository.findByLoginId(loginId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
                 .getId();
+    }
+
+    private void validateProjectAccess(Long projectId, Long memberId) {
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
+            throw new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN);
+        }
     }
 }
