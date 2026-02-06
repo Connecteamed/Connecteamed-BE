@@ -5,12 +5,15 @@ import com.connecteamed.server.domain.member.entity.Member;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
-public record CustomUserDetails(Member member) implements UserDetails {
+public record CustomUserDetails(Member member,
+                                Map<String, Object> attributes)
+        implements UserDetails, OAuth2User {
 
 
     @Override
@@ -19,6 +22,19 @@ public record CustomUserDetails(Member member) implements UserDetails {
         // 나중에 관리자 기능이 필요해지면 엔티티에 필드를 추가
         return Collections.singletonList(new SimpleGrantedAuthority("USER"));
     }
+
+    // 기존 자체 로그인용 생성자 (attributes를 빈 값으로 넘김)
+    public CustomUserDetails(Member member) {
+        this(member, java.util.Collections.emptyMap());
+    }
+
+    //소셜 로그인 용
+    @Override
+    public Map<String, Object> getAttributes() { return attributes; }
+
+    //소셜 로그인 용
+    @Override
+    public String getName() { return member.getLoginId(); }
 
     @Override
     public String getPassword() {
