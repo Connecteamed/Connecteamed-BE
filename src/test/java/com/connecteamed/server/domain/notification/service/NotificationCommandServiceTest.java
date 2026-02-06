@@ -3,6 +3,7 @@ package com.connecteamed.server.domain.notification.service;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.notification.entity.Notification;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
 import com.connecteamed.server.domain.notification.repository.NotificationTypeRepository;
 import com.connecteamed.server.domain.project.entity.Project;
@@ -42,27 +43,25 @@ public class NotificationCommandServiceTest {
         Member sender = Member.builder().id(2L).build();
         Project project = Project.builder().id(100L).name("Connected").build();
         Long taskId = 50L;
+        NotificationCategory category = NotificationCategory.TASK_TAGGED;
 
         NotificationType mockType = NotificationType.builder()
-                .typeKey(typeKey)
+                .typeKey(category.name())
                 .build();
 
-        when(notificationTypeRepository.findByTypeKey(typeKey))
+        when(notificationTypeRepository.findByTypeKey(category.name()))
                 .thenReturn(Optional.of(mockType));
 
         // when
-        notificationCommandService.send(receiver, sender, project, taskId, typeKey);
+        notificationCommandService.send(receiver, sender, project, taskId, category.name());
 
         // then
-        verify(notificationRepository, times(1)).save(any(Notification.class));
-
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(captor.capture());
         Notification savedNotification = captor.getValue();
 
         assertThat(savedNotification.getReceiver()).isEqualTo(receiver);
-        assertThat(savedNotification.getNotificationType().getTypeKey()).isEqualTo(typeKey);
-        assertThat(savedNotification.getContent()).isEqualTo("새로운 업무에 태그됐어요");
-        assertThat(savedNotification.getTargetUrl()).isEqualTo("/projects/100/tasks/50");
+        assertThat(savedNotification.getContent()).isEqualTo(category.getMessage());
+        assertThat(savedNotification.getTargetUrl()).isEqualTo(category.generateUrl(100L, 50L));
     }
 }

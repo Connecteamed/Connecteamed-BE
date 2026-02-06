@@ -6,11 +6,15 @@ import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.enums.SocialType;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
+import com.connecteamed.server.domain.notification.service.NotificationCommandService;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.domain.project.code.ProjectErrorCode;
 import com.connecteamed.server.domain.project.dto.ProjectCreateReq;
 import com.connecteamed.server.domain.project.dto.ProjectRes;
 import com.connecteamed.server.domain.project.dto.ProjectUpdateReq;
 import com.connecteamed.server.domain.project.entity.Project;
+import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.entity.ProjectRequiredRole;
 import com.connecteamed.server.domain.project.entity.ProjectRole;
 import com.connecteamed.server.domain.project.enums.ProjectStatus;
@@ -62,6 +66,9 @@ class ProjectServiceTest {
 
     @Mock
     private ContributionService contributionService;
+
+    @Mock
+    private NotificationHelper notificationHelper;
 
     private static MockedStatic<SecurityUtil> mockedSecurityUtil;
 
@@ -359,6 +366,11 @@ class ProjectServiceTest {
     @DisplayName("프로젝트 종료 성공")
     void closeProject_Success() {
         // given
+        ProjectMember pm = ProjectMember.builder()
+                .id(10L)
+                .project(testProject)
+                .member(testMember)
+                .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
 
         // when
@@ -369,6 +381,11 @@ class ProjectServiceTest {
         assertEquals(1L, response.getProjectId());
         assertEquals(ProjectStatus.COMPLETED, response.getStatus());
         assertNotNull(response.getClosedAt());
+
+        verify(notificationHelper, times(1)).sendToAllProjectMembers(
+                eq(testProject),
+                eq(NotificationCategory.PROJECT_COMPLETED)
+        );
     }
 
     @Test
@@ -382,6 +399,7 @@ class ProjectServiceTest {
                 projectService.closeProject(1L)
         );
         assertEquals(ProjectErrorCode.PROJECT_NOT_FOUND, exception.getCode());
+        verifyNoInteractions(notificationHelper);
     }
 }
 

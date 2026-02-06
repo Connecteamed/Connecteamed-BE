@@ -4,6 +4,7 @@ import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.notification.dto.NotificationListRes;
 import com.connecteamed.server.domain.notification.entity.Notification;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
@@ -43,19 +44,27 @@ public class NotificationServiceTest {
         // given
         String loginId = "user123";
         Pageable pageable = PageRequest.of(0, 10);
+        Long projectId = 100L;
+        Long taskId = 50L;
+        NotificationCategory category = NotificationCategory.TASK_TAGGED;
 
         NotificationType type = NotificationType.builder()
-                .typeKey("TASK_TAGGED")
+                .typeKey(category.name())
                 .displayName("업무 태그 알림")
                 .build();
 
-        Project project = Project.builder().name("테스트 프로젝트").build();
+        Project project = Project.builder()
+                .id(projectId)
+                .name("테스트 프로젝트")
+                .build();
+
         Notification notification = Notification.builder()
                 .id(1L)
                 .receiver(Member.builder().loginId(loginId).build())
                 .project(project)
                 .notificationType(type)
-                .content("새로운 업무에 태그됐어요")
+                .content(category.getMessage())
+                .targetUrl(category.generateUrl(projectId, taskId))
                 .isRead(false)
                 .build();
 
@@ -74,7 +83,13 @@ public class NotificationServiceTest {
         // then
         assertThat(result.unreadCount()).isEqualTo(1);
         assertThat(result.notifications()).hasSize(1);
-        assertThat(result.notifications().get(0).title()).isEqualTo("테스트 프로젝트");
+
+        // 상세 필드 검증
+        var res = result.notifications().get(0);
+        assertThat(res.title()).isEqualTo("테스트 프로젝트");
+        assertThat(res.content()).isEqualTo(category.getMessage());
+        assertThat(res.targetUrl()).isEqualTo("/projects/100/tasks/50");
+        assertThat(res.notificationType()).isEqualTo("TASK_TAGGED");
     }
 
     @Test
