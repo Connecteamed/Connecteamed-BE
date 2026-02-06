@@ -8,6 +8,8 @@ import com.connecteamed.server.domain.task.entity.Task;
 import com.connecteamed.server.domain.task.entity.TaskAssignee;
 import com.connecteamed.server.domain.task.entity.TaskNote;
 import com.connecteamed.server.domain.task.enums.TaskStatus;
+import com.connecteamed.server.domain.task.exception.TaskErrorCode;
+import com.connecteamed.server.domain.task.exception.TaskException;
 import com.connecteamed.server.domain.task.repository.TaskAssigneeRepository;
 import com.connecteamed.server.domain.task.repository.TaskNoteRepository;
 import com.connecteamed.server.domain.task.repository.TaskRepository;
@@ -111,15 +113,16 @@ public class CompletedTaskService {
     @Transactional
     public void updateCompletedTask(Long taskId, CompletedTaskUpdateReq req) {
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
-        task.updateInfo(req.name(), req.content());
+                .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
         Long currentMemberId = getCurrentUserId();
 
-        TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
-                .orElseGet(() -> createNewNote(task, currentMemberId));
+        taskAssigneeRepository.findAllByTaskId(taskId).stream()
+                .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
+                .findFirst()
+                .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
 
-        note.updateContent(req.noteContent());
+        task.updateInfo(req.name(), req.content(), req.noteContent());
     }
 
     // 완료한 업무 삭제

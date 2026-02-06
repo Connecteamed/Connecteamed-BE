@@ -28,33 +28,65 @@ public class RetrospectiveService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
-    private final GeminiProvider geminiProvider;
+    private final RetrospectiveAsyncService retrospectiveAsyncService;
 
     // ai 회고 생성
     @Transactional
     public RetrospectiveCreateRes createAiRetrospective(Long projectId, Long memberId, RetrospectiveCreateReq request){
-        // 데이터 조회 (프로젝트, 작성자, 업무 리스트)
-        Project project = projectRepository.findById(projectId)
+
+        Project project = projectRepository.findByIdWithDetails(projectId)
                 .orElseThrow(() -> new RuntimeException("프로젝트를 찾을 수 없습니다."));
 
-        ProjectMember writer = projectMemberRepository.findById(memberId)
+        ProjectMember writer = project.getProjectMembers().stream()
+                .filter(pm -> pm.getId().equals(memberId))
+                .findFirst()
                 .orElseThrow(() -> new RuntimeException("팀원 정보를 찾을 수 없습니다."));
 
         List<Task> selectedTasks = taskRepository.findAllById(request.taskIds());
 
-        // AI 분석 수행
-        List<String> taskNames = selectedTasks.stream().map(Task::getName).toList();
-        String aiAnalyzedResult = geminiProvider.getAnalysis(request.projectResult(), taskNames);
+        String otherTasks = project.getProjectMembers().stream()
+                .filter(pm -> !pm.getId().equals(writer.getId()))
+                .flatMap(pm -> pm.getTasks().stream())
+                .map(Task::getName)
+                .distinct()
+                .collect(Collectors.joining(", "));
 
+        if (otherTasks.isEmpty()) {
+            otherTasks = "현재 등록된 다른 팀원의 업무가 없습니다";
+        }
+
+        // 내 업무 리스트 상세 포맷팅
+        String myTaskList = selectedTasks.stream()
+                .map(t -> String.format("- 업무명: %s / 내용: %s / 성과: %s", t.getName(), t.getContent(), t.getResult()))
+                .collect(Collectors.joining("\n"));
+
+        // 내 역할 정보 추출
+        String myRole = writer.getRoles().stream()
+                .map(pmr -> pmr.getRole().getRoleName())
+                .collect(Collectors.joining(", "));
+        if (myRole.isEmpty()) myRole = "팀원";
+
+        // AI 분석 수행
         AiRetrospective retrospective = AiRetrospective.builder()
                 .project(project)
                 .writer(writer)
                 .title(request.title())
-                .projectResult(aiAnalyzedResult)
+                .projectResult("AI 분석이 진행 중입니다. 잠시만 기다려 주세요.")
                 .build();
 
         selectedTasks.forEach(retrospective::addRetrospectiveTask);
         AiRetrospective saved = aiRetrospectiveRepository.save(retrospective);
+
+        retrospectiveAsyncService.processAiAnalysis(
+                saved.getId(),
+                project.getName(),
+                project.getGoal(),
+                request.title(),
+                request.projectResult(),
+                myRole,
+                myTaskList,
+                otherTasks
+        );
 
         return new RetrospectiveCreateRes(saved.getId(), saved.getTitle());
     }
