@@ -6,6 +6,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.global.util.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +38,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectRoleRepository projectRoleRepository;
     private final ProjectRequiredRoleRepository projectRequiredRoleRepository;
+    private final ContributionService contributionService;
+    private final MemberRepository memberRepository;
 
     @Override //TODO : 프로젝트 존재 체크 예외처리 필요 2026/01/16
     public List<ProjectMemberRes> getProjectMembers(Long projectId) {
@@ -109,6 +116,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                 );
             }
         }
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.PROJECT_UPDATE, projectMemberId));
 
         return toRes(pm);
     }
@@ -142,5 +151,12 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                 pm.getMember().getName(),
                 roles
         );
+    }
+
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
+                .getId();
     }
 }

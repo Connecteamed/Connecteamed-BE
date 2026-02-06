@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.project.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
@@ -20,6 +23,7 @@ import com.connecteamed.server.domain.project.repository.ProjectRoleRepository;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.S3Uploader;
+import com.connecteamed.server.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +49,7 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final NotificationCommandService  notificationCommandService;
+    private final ContributionService contributionService;
 
     /**
      * 프로젝트 생성
@@ -127,6 +132,8 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
+        contributionService.recordContribution(owner.getId(),
+                new ContributionReq(ContributionAction.PROJECT_CREATE, savedProject.getId()));
 
         // 4. 응답 반환
         log.info("[ProjectService] Returning CreateResponse: projectId={}", savedProject.getId());
@@ -222,6 +229,8 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.PROJECT_UPDATE, project.getId()));
 
         // 6. 응답 반환
         log.info("[ProjectService] Returning CreateResponse: projectId={}", project.getId());
@@ -276,6 +285,13 @@ public class ProjectService {
                     "PROJECT_COMPLETED"
             );
         }
+    }
+
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
+                .getId();
     }
 }
 

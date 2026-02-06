@@ -5,12 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +33,8 @@ import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentServiceImplTest {
@@ -39,8 +44,53 @@ class DocumentServiceImplTest {
     @Mock ProjectMemberRepository projectMemberRepository;
     @Mock S3StorageService s3StorageService;
     @Mock MemberRepository memberRepository;
+    @Mock ContributionService contributionService;
 
     @InjectMocks DocumentServiceImpl documentService;
+
+    @Test
+    @DisplayName("파일 업로드 성공: S3 업로드 및 DB 저장 후 DOCUMENT_CREATE 잔디를 기록한다")
+    void uploadFile_success_recordContribution() {
+        // given
+        Long projectId = 1L;
+        String loginId = "test@example.com";
+        Long memberId = 100L;
+        Long savedDocumentId = 50L;
+
+        MultipartFile mockFile = mock(MultipartFile.class);
+        Member member = mock(Member.class);
+        ProjectMember pm = mock(ProjectMember.class);
+
+        given(member.getId()).willReturn(memberId);
+        given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
+        given(projectMemberRepository.findByProject_IdAndMember_Id(projectId, memberId)).willReturn(Optional.of(pm));
+        given(pm.getMember()).willReturn(member);
+
+        given(mockFile.getOriginalFilename()).willReturn("test.pdf");
+        given(s3StorageService.upload(any(), anyString())).willReturn("s3-url-path");
+
+        // Document 저장 시 ID 세팅 시뮬레이션
+        given(documentRepository.save(any(Document.class))).willAnswer(invocation -> {
+            Document d = invocation.getArgument(0);
+            ReflectionTestUtils.setField(d, "id", savedDocumentId);
+            ReflectionTestUtils.setField(d, "createdAt", Instant.now()); // 추가: createdAt 설정
+            return d;
+        });
+
+        // when
+        documentService.uploadFile(projectId, loginId, mockFile, DocumentFileType.PDF);
+
+        // then
+        // ContributionService가 DOCUMENT_CREATE 타입으로 호출되었는가?
+        verify(contributionService, times(1)).recordContribution(
+                eq(memberId),
+                argThat(req -> req.actionType() == ContributionAction.DOCUMENT_CREATE
+                        && req.targetId().equals(savedDocumentId))
+        );
+
+        then(s3StorageService).should().upload(any(), anyString());
+        then(documentRepository).should().save(any(Document.class));
+    }
 
     @Test
     @DisplayName("파일 업로드: type이 TEXT면 예외 (S3 호출/저장 없어야 함)")
@@ -51,6 +101,7 @@ class DocumentServiceImplTest {
 
         then(s3StorageService).shouldHaveNoInteractions();
         then(documentRepository).shouldHaveNoInteractions();
+        verify(contributionService, never()).recordContribution(any(), any());
     }
 
     @Test
@@ -93,6 +144,8 @@ class DocumentServiceImplTest {
         assertThat(res.downloadUrl()).isNull();
 
         then(s3StorageService).shouldHaveNoInteractions();
+
+        verify(contributionService, never()).recordContribution(any(), any());
     }
 
     @Test
@@ -137,16 +190,24 @@ class DocumentServiceImplTest {
     @DisplayName("텍스트 문서 수정: TEXT면 updateText 호출")
     void updateText_success() {
         Long documentId = 1L;
+        Long memberId = 100L;
         DocumentUpdateTextReq req = new DocumentUpdateTextReq("수정제목", "수정내용");
 
         Document d = mock(Document.class);
+        ProjectMember pm = mock(ProjectMember.class);
+        Member m = mock(Member.class);
+
         given(d.getFileType()).willReturn(DocumentFileType.TEXT);
+        given(d.getProjectMember()).willReturn(pm);
+        given(pm.getMember()).willReturn(m);
+        given(m.getId()).willReturn(memberId);
         given(documentRepository.findByIdAndDeletedAtIsNull(documentId))
                 .willReturn(Optional.of(d));
 
         documentService.updateText(documentId, req);
 
         then(d).should().updateText("수정제목", "수정내용");
+        verify(contributionService).recordContribution(eq(memberId), any());
     }
 
     @Test

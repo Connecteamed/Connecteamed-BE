@@ -136,7 +136,7 @@ public class RetrospectiveService {
         }
         retrospective.update(request.title(), request.projectResult());
 
-        contributionService.recordContribution(memberId, // 여기선 memberId가 실제 Member ID라고 가정
+        contributionService.recordContribution(memberId,
                 new ContributionReq(ContributionAction.RETROSPECTIVE_UPDATE, retrospective.getId()));
     }
 

@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.meeting.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.meeting.dto.MeetingCreateReq;
 import com.connecteamed.server.domain.meeting.dto.MeetingCreateRes;
 import com.connecteamed.server.domain.meeting.dto.MeetingUpdateReq;
@@ -7,18 +10,24 @@ import com.connecteamed.server.domain.meeting.entity.Meeting;
 import com.connecteamed.server.domain.meeting.repository.MeetingAgendaRepository;
 import com.connecteamed.server.domain.meeting.repository.MeetingAttendeeRepository;
 import com.connecteamed.server.domain.meeting.repository.MeetingRepository;
+import com.connecteamed.server.domain.member.entity.Member;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
+import com.connecteamed.server.global.util.SecurityUtil;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -32,6 +41,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.*;
+
 
 @ExtendWith(MockitoExtension.class)
 class MeetingServiceTest {
@@ -41,17 +53,41 @@ class MeetingServiceTest {
     @Mock private MeetingAttendeeRepository meetingAttendeeRepository;
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectMemberRepository projectMemberRepository;
+    @Mock private MemberRepository memberRepository;
+    @Mock private ContributionService contributionService;
 
     @InjectMocks private MeetingService meetingService;
 
+    private static MockedStatic<SecurityUtil> mockedSecurityUtil;
+
+    @BeforeAll
+    static void setup() {
+        mockedSecurityUtil = mockStatic(SecurityUtil.class);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        mockedSecurityUtil.close();
+    }
+
     @Test
-    @DisplayName("회의록 생성: 프로젝트 참조 후 저장하고 응답을 반환한다")
+    @DisplayName("회의록 생성: 프로젝트 참조 후 저장하고 MEETING_CREATE 잔디를 기록한다")
     void createMeeting_success() {
         // given
         Long projectId = 1L;
+        Long userId = 10L;
+        Long savedMeetingId = 100L;
+        String loginId = "test@example.com";
+
         var req = new MeetingCreateReq(projectId,"주간 회의", java.time.Instant.parse("2026-01-15T10:00:00Z"), List.of("안건1"), List.of(1L, 2L));
+
         Project projectRef = mock(Project.class);
         ProjectMember memberRef = mock(ProjectMember.class);
+        Member member = mock(Member.class);
+
+        when(SecurityUtil.getCurrentLoginId()).thenReturn(loginId);
+        given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
+        given(member.getId()).willReturn(userId);
 
         given(projectRepository.findById(projectId)).willReturn(Optional.of(projectRef));
         given(projectMemberRepository.findById(any())).willReturn(Optional.of(memberRef));
@@ -72,6 +108,12 @@ class MeetingServiceTest {
         Meeting saved = captor.getValue();
         assertThat(saved.getTitle()).isEqualTo("주간 회의");
         assertThat(res.meetingId()).isEqualTo(100L);
+
+        ArgumentCaptor<ContributionReq> contribCaptor = ArgumentCaptor.forClass(ContributionReq.class);
+        verify(contributionService).recordContribution(eq(userId), contribCaptor.capture());
+
+        assertThat(contribCaptor.getValue().actionType()).isEqualTo(ContributionAction.MEETING_CREATE);
+        assertThat(contribCaptor.getValue().targetId()).isEqualTo(100L);
     }
 
     @Test
@@ -79,6 +121,8 @@ class MeetingServiceTest {
     void updateMeeting_success() {
         // given
         Long meetingId = 100L;
+        Long userId = 10L;
+        String loginId = "test@example.com";
         Project project = mock(Project.class);
         Meeting existingMeeting = Meeting.builder()
                 .title("기존 제목")
@@ -88,6 +132,11 @@ class MeetingServiceTest {
         ReflectionTestUtils.setField(existingMeeting, "id", meetingId);
         ReflectionTestUtils.setField(existingMeeting, "createdAt", Instant.now());
         ReflectionTestUtils.setField(existingMeeting, "updatedAt", Instant.now());
+
+        Member member = mock(Member.class);
+        when(SecurityUtil.getCurrentLoginId()).thenReturn(loginId);
+        given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
+        given(member.getId()).willReturn(userId);
 
         List<MeetingUpdateReq.UpdateAgendaInfo> emptyAgendas = List.of();
         var req = new MeetingUpdateReq("수정 제목", Instant.parse("2026-01-15T11:00:00Z"), emptyAgendas, List.of());
@@ -99,6 +148,10 @@ class MeetingServiceTest {
 
         // then
         assertThat(existingMeeting.getTitle()).isEqualTo("수정 제목");
+
+        verify(contributionService).recordContribution(eq(userId), argThat(c ->
+                c.actionType() == ContributionAction.MEETING_UPDATE && c.targetId().equals(meetingId)
+        ));
     }
 
     @Test
@@ -112,5 +165,7 @@ class MeetingServiceTest {
         assertThatThrownBy(() -> meetingService.getMeeting(invalidId))
                 .isInstanceOf(GeneralException.class)
                 .hasFieldOrPropertyWithValue("code", GeneralErrorCode.NOT_FOUND);
+
+        verify(contributionService, never()).recordContribution(any(), any());
     }
 }
