@@ -44,11 +44,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             email = (String) kakaoAccount.get("email");
             name = (String) profile.get("nickname"); // 실명 대신 닉네임 활용
             socialType = SocialType.KAKAO;
-        } else {
-            // 구글 로그인인 경우 데이터 추출
+        } else if ("google".equals(registrationId)) { // 2. 구글 명시적 처리
             email = (String) attributes.get("email");
             name = (String) attributes.get("name");
             socialType = SocialType.GOOGLE;
+
+        } else {
+            // 지원하지 않는 소셜 로그인 공급자
+            throw new OAuth2AuthenticationException("지원하지 않는 소셜 로그인 공급자입니다: " + registrationId);
+        }
+
+        if (email == null) {
+            throw new OAuth2AuthenticationException("소셜 서비스로부터 이메일 정보를 불러올 수 없습니다.");
         }
 
         SocialType finalSocialType = socialType;
