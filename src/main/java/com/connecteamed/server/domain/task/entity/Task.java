@@ -61,10 +61,9 @@ public class Task extends BaseEntity {
         this.status = status;
     }
 
-    public void updateInfo(String name, String content, String result) {
+    public void updateInfo(String name, String content) {
         this.name = name;
         this.content = content;
-        this.result = result;
     }
 
     @PrePersist

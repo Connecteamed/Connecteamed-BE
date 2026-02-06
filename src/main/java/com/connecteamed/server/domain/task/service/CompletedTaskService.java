@@ -148,10 +148,10 @@ public class CompletedTaskService {
                 .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
                 .findFirst()
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
+        task.updateInfo(req.name(), req.content());
 
         TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
                 .orElseGet(() -> createNewNote(task, currentMemberId));
-
         note.updateContent(req.noteContent());
 
         contributionService.recordContribution(currentMemberId,
