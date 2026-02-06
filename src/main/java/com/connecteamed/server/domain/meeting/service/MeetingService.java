@@ -36,13 +36,15 @@ public class MeetingService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ContributionService  contributionService;
-    private final MemberRepository memberRepository;
+    private final SecurityUtil securityUtil;
 
     // 회의록 생성
     @Transactional
     public MeetingCreateRes createMeeting(Long projectId, MeetingCreateReq request) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+
+        validateProjectAccess(projectId);
 
         // Meeting 객체를 먼저 생성
         Meeting meeting = Meeting.builder()
@@ -76,7 +78,7 @@ public class MeetingService {
         // 마지막에 저장
         Meeting savedMeeting = meetingRepository.save(meeting);
 
-        Long userId = getCurrentUserId();
+        Long userId = securityUtil.getCurrentMemberId();
         contributionService.recordContribution(userId,
                 new ContributionReq(ContributionAction.MEETING_CREATE, savedMeeting.getId()));
 
@@ -88,8 +90,8 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
-        Long currentMemberId = getCurrentUserId();
-        if (!projectMemberRepository.existsByProjectIdAndMemberId(meeting.getProject().getId(), currentMemberId)) {
+        Long userId = securityUtil.getCurrentMemberId();
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(meeting.getProject().getId(), userId)) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN, "회의록 수정 권한이 없습니다.");
         }
 
@@ -133,23 +135,17 @@ public class MeetingService {
             });
         }
 
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(userId,
                 new ContributionReq(ContributionAction.MEETING_UPDATE, meeting.getId()));
-
         return getMeeting(meetingId);
-    }
-
-    private Long getCurrentUserId() {
-        String loginId = SecurityUtil.getCurrentLoginId();
-        return memberRepository.findByLoginId(loginId)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED))
-                .getId();
     }
 
     // 회의록 상세 조회
     public MeetingDetailRes getMeeting(Long meetingId) {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+
+        validateProjectAccess(meeting.getProject().getId());
 
         return new MeetingDetailRes(
                 meeting.getId(),
@@ -171,6 +167,8 @@ public class MeetingService {
     }
     // 4. 회의록 목록 조회
     public MeetingListRes getMeetings(Long projectId) {
+        validateProjectAccess(projectId);
+
         List<Meeting> meetings = meetingRepository.findAllByProjectIdAndDeletedAtIsNull(projectId);
 
         return new MeetingListRes(
@@ -184,5 +182,11 @@ public class MeetingService {
                         )).toList()
                 )).toList()
         );
+    }
+
+    private void validateProjectAccess(Long projectId) {
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, securityUtil.getCurrentMemberId())) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN, "해당 프로젝트에 대한 접근 권한이 없습니다.");
+        }
     }
 }
