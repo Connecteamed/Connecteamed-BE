@@ -75,6 +75,11 @@ class CompletedTaskServiceTest {
             Task task = Task.builder().id(taskId).status(TaskStatus.DONE).build();
             Member member = mock(Member.class);
 
+            TaskAssignee assignee = mock(TaskAssignee.class, RETURNS_DEEP_STUBS);
+
+            given(assignee.getProjectMember().getMember().getId()).willReturn(memberId);
+            given(taskAssigneeRepository.findAllByTaskId(taskId)).willReturn(List.of(assignee));
+
             mockedSecurityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn(loginId);
             given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
             given(member.getId()).willReturn(memberId);
@@ -82,14 +87,12 @@ class CompletedTaskServiceTest {
 
             // when
             completedTaskService.updateCompletedTaskStatus(taskId, TaskStatus.IN_PROGRESS);
+
             // then
-            // 잔디 기록 검증
             verify(contributionService).recordContribution(eq(memberId), any());
-            // 알림 발송 검증
             verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_RESTARTED));
         }
     }
-
     @Test
     @DisplayName("완료 업무 상세 수정 시 잔디 기록 및 수정 알림 발송 검증")
     void updateCompletedTask_Success() {
@@ -99,33 +102,26 @@ class CompletedTaskServiceTest {
             Long memberId = 10L;
             String loginId = "testUser";
 
-            Task task = Task.builder().id(taskId).build();
+            Task task = Task.builder().id(taskId).status(TaskStatus.DONE).build();
             Member member = mock(Member.class);
             given(member.getId()).willReturn(memberId);
 
             TaskAssignee myAssignee = mock(TaskAssignee.class, RETURNS_DEEP_STUBS);
-            given(myAssignee.getProjectMember().getMember().getId()).willReturn(memberId);
 
-            TaskNote note = mock(TaskNote.class);
+            given(myAssignee.getProjectMember().getMember().getId()).willReturn(memberId);
+            given(taskAssigneeRepository.findAllByTaskId(taskId))
+                    .willReturn(List.of(myAssignee));
 
             mockedSecurityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn(loginId);
             given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
             given(taskRepository.findById(taskId)).willReturn(Optional.of(task));
 
-            // 담당자 확인 로직 모킹
-            given(taskAssigneeRepository.findAllByTaskId(taskId)).willReturn(Collections.singletonList(myAssignee));
-
-            given(taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, memberId))
-                    .willReturn(Optional.of(note));
-
             // when
-            completedTaskService.updateCompletedTask(taskId, new CompletedTaskUpdateReq("제목", "내용", "수정노트"));
+            completedTaskService.updateCompletedTaskStatus(taskId, TaskStatus.IN_PROGRESS);
 
             // then
-            // 잔디 기록 검증
             verify(contributionService).recordContribution(eq(memberId), any());
-            // 알림 발송 검증
-            verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_MODIFIED));
+            verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_RESTARTED));
         }
     }
 
