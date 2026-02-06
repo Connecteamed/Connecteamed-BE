@@ -10,8 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,11 @@ public class ContributionService {
         }
 
         // 오늘의 총 활동 횟수 조회 (DB에서 Instant를 날짜로 변환해 카운트)
-        int todayCount = contributionRepository.countTodayActivities(userId);
+        LocalDate today = LocalDate.now(KST);
+        Instant startOfToday = today.atStartOfDay(KST).toInstant();
+        Instant endOfToday = startOfToday.plus(1, ChronoUnit.DAYS);
+
+        int todayCount = contributionRepository.countTodayActivities(userId, startOfToday, endOfToday);
 
         return new ContributionRes(
                 request.actionType(),
@@ -50,8 +56,10 @@ public class ContributionService {
 
     @Transactional(readOnly = true)
     public CalendarContributionRes getCalendar(Long userId, int year) {
-        // DB에서 가져온 m.getDate()(java.sql.Date)를 KST 기준 LocalDate로 변환하여 Map 생성
-        Map<LocalDate, Integer> dbData = contributionRepository.findAllByUserIdAndYear(userId, year).stream()
+        Instant startOfYear = LocalDate.of(year, 1, 1).atStartOfDay(KST).toInstant();
+        Instant endOfYear = LocalDate.of(year + 1, 1, 1).atStartOfDay(KST).toInstant();
+
+        Map<LocalDate, Integer> dbData = contributionRepository.findAllByUserIdAndRange(userId, startOfYear, endOfYear).stream()
                 .collect(Collectors.toMap(
                         m -> m.getDate().toLocalDate(),
                         ContributionRepository.ContributionMapping::getCount

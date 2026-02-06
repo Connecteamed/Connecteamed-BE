@@ -12,6 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -35,7 +37,7 @@ public class ContributionServiceTest {
 
         given(contributionRepository.existsByUserIdAndActionTypeAndTargetId(userId, request.actionType(), request.targetId()))
                 .willReturn(false);
-        given(contributionRepository.countTodayActivities(userId))
+        given(contributionRepository.countTodayActivities(eq(userId), any(Instant.class), any(Instant.class)))
                 .willReturn(1);
 
         // when
@@ -57,7 +59,7 @@ public class ContributionServiceTest {
 
         given(contributionRepository.existsByUserIdAndActionTypeAndTargetId(userId, request.actionType(), request.targetId()))
                 .willReturn(true);
-        given(contributionRepository.countTodayActivities(userId))
+        given(contributionRepository.countTodayActivities(eq(userId), any(Instant.class), any(Instant.class)))
                 .willReturn(5);
 
         // when
@@ -84,8 +86,11 @@ public class ContributionServiceTest {
     private int getLevelFromCount(int count) {
         Long userId = 1L;
         ContributionReq req = new ContributionReq(ContributionAction.TASK_CREATE, 999L);
-        given(contributionRepository.existsByUserIdAndActionTypeAndTargetId(anyLong(), any(), anyLong())).willReturn(true);
-        given(contributionRepository.countTodayActivities(userId)).willReturn(count);
+
+        lenient().when(contributionRepository.existsByUserIdAndActionTypeAndTargetId(anyLong(), any(), anyLong()))
+                .thenReturn(true);
+        lenient().when(contributionRepository.countTodayActivities(eq(userId), any(Instant.class), any(Instant.class)))
+                .thenReturn(count);
 
         return contributionService.recordContribution(userId, req).currentLevel();
     }
