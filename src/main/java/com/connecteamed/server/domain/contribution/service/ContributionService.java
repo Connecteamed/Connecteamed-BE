@@ -59,10 +59,10 @@ public class ContributionService {
         Instant startOfYear = LocalDate.of(year, 1, 1).atStartOfDay(KST).toInstant();
         Instant endOfYear = LocalDate.of(year + 1, 1, 1).atStartOfDay(KST).toInstant();
 
-        Map<LocalDate, Integer> dbData = contributionRepository.findAllByUserIdAndRange(userId, startOfYear, endOfYear).stream()
-                .collect(Collectors.toMap(
-                        m -> m.getDate().toLocalDate(),
-                        ContributionRepository.ContributionMapping::getCount
+        Map<LocalDate, Long> dbData = contributionRepository.findAllByUserIdAndRange(userId, startOfYear, endOfYear).stream()
+                .collect(Collectors.groupingBy(
+                        c -> c.getCreatedAt().atZone(KST).toLocalDate(),
+                        Collectors.counting()
                 ));
 
         List<DailyContributionRes> contributions = new ArrayList<>();
@@ -70,9 +70,8 @@ public class ContributionService {
         LocalDate end = LocalDate.of(year, 12, 31);
         int totalYearlyCount = 0;
 
-        // 1월 1일부터 365일 루프
         while (!current.isAfter(end)) {
-            int count = dbData.getOrDefault(current, 0);
+            int count = dbData.getOrDefault(current, 0L).intValue();
             totalYearlyCount += count;
 
             contributions.add(new DailyContributionRes(
