@@ -88,6 +88,11 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
+        Long currentMemberId = getCurrentUserId();
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(meeting.getProject().getId(), currentMemberId)) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN, "회의록 수정 권한이 없습니다.");
+        }
+
         // 기본 정보 업데이트
         meeting.update(request.title(), request.meetingDate());
 
