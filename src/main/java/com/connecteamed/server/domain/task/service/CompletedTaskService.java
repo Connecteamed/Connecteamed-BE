@@ -92,6 +92,13 @@ public class CompletedTaskService {
 
         Long currentMemberId = getCurrentUserId();
 
+        boolean isAssignee = taskAssigneeRepository.findAllByTaskId(taskId).stream()
+                .anyMatch(a -> a.getProjectMember().getMember().getId().equals(currentMemberId));
+
+        if (!isAssignee) {
+            throw new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 상태를 변경할 수 없습니다.");
+        }
+
         TaskStatus oldStatus = task.getStatus();
         task.updateStatus(taskStatus);
 
