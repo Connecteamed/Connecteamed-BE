@@ -10,6 +10,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -49,6 +51,10 @@ public class Project extends BaseEntity {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProjectMember> projectMembers = new ArrayList<>();
 
     @PrePersist
     public void prePersist(){
