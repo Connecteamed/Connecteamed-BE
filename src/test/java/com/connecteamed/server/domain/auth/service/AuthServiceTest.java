@@ -35,7 +35,6 @@ public class AuthServiceTest {
     private MemberRepository memberRepository;
 
     @InjectMocks
-    @Spy
     private CustomOAuth2UserService customOAuth2UserService;
 
     @Mock
