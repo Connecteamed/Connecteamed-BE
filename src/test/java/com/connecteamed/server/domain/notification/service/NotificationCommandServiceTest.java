@@ -42,7 +42,6 @@ public class NotificationCommandServiceTest {
         Member sender = Member.builder().id(2L).build();
         Project project = Project.builder().id(100L).name("Connected").build();
         Long taskId = 50L;
-        String typeKey = "TASK_TAGGED";
 
         NotificationType mockType = NotificationType.builder()
                 .typeKey(typeKey)

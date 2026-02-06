@@ -5,7 +5,7 @@ import com.connecteamed.server.domain.contribution.enums.ContributionAction;
 import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
-import com.connecteamed.server.domain.notification.entity.NotificationType;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationTypeRepository;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
 import com.connecteamed.server.domain.project.code.ProjectErrorCode;
@@ -20,6 +20,7 @@ import com.connecteamed.server.domain.project.repository.ProjectMemberRepository
 import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRequiredRoleRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRoleRepository;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.S3Uploader;
@@ -49,6 +50,7 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final NotificationCommandService  notificationCommandService;
+    private final NotificationHelper notificationHelper;
     private final ContributionService contributionService;
 
     /**
@@ -262,7 +264,7 @@ public class ProjectService {
                 project.getId(), project.getStatus(), project.getClosedAt());
 
         // 알림: 프로젝트 종료
-        sendProjectCompletionNotification(project);
+        notificationHelper.sendToAllProjectMembers(project, NotificationCategory.PROJECT_COMPLETED);
 
         // 3. 응답 반환
         return ProjectRes.CloseResponse.builder()
@@ -270,21 +272,6 @@ public class ProjectService {
                 .status(project.getStatus())
                 .closedAt(project.getClosedAt())
                 .build();
-    }
-
-    // 프로젝트 종료 알림 로직
-    private void sendProjectCompletionNotification(Project project) {
-        List<ProjectMember> members = projectMemberRepository.findAllByProjectId(project.getId());
-
-        for (ProjectMember pm : members) {
-            notificationCommandService.send(
-                    pm.getMember(),
-                    null,
-                    project,
-                    null,
-                    "PROJECT_COMPLETED"
-            );
-        }
     }
 
     private Long getCurrentUserId() {
