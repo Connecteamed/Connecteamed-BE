@@ -116,6 +116,7 @@ public class NotificationServiceTest {
         // when & then
         assertThatThrownBy(() -> notificationService.deleteNotification(notificationId, loginId))
                 .isInstanceOf(GeneralException.class)
-                .hasMessageContaining(GeneralErrorCode.UNAUTHORIZED.getMessage());
+                .extracting("code")
+                .isEqualTo(GeneralErrorCode.UNAUTHORIZED);
     }
 }

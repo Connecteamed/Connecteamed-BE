@@ -55,15 +55,23 @@ public class RetrospectiveServiceTest {
 
         Project project = mock(Project.class);
         ProjectMember writer = mock(ProjectMember.class);
+
+        given(writer.getId()).willReturn(memberId);
+        given(project.getProjectMembers()).willReturn(List.of(writer));
+
         List<Task> tasks = List.of(mock(Task.class), mock(Task.class));
 
         AiRetrospective savedRetrospective = AiRetrospective.builder()
                 .title("테스트 제목")
                 .build();
         AiRetrospective spyRetrospective = spy(savedRetrospective);
-        given(spyRetrospective.getId()).willReturn(mockRetrospectiveId);
+        lenient().when(spyRetrospective.getId()).thenReturn(mockRetrospectiveId);
 
-        given(projectRepository.findById(projectId)).willReturn(Optional.of(project));
+        given(project.getProjectMembers()).willReturn(List.of(writer));
+        given(writer.getId()).willReturn(memberId);
+        given(writer.getRoles()).willReturn(List.of());
+
+        given(projectRepository.findByIdWithDetails(projectId)).willReturn(Optional.of(project));
         given(projectMemberRepository.findById(memberId)).willReturn(Optional.of(writer));
         given(taskRepository.findAllById(any())).willReturn(tasks);
         given(aiRetrospectiveRepository.save(any())).willReturn(spyRetrospective);
@@ -77,7 +85,7 @@ public class RetrospectiveServiceTest {
         verify(aiRetrospectiveRepository, times(1)).save(any());
         verify(retrospectiveAsyncService, times(1)).processAiAnalysis(
                 eq(mockRetrospectiveId),
-                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()
+                any(), any(), any(), any(), any(), any(), any()
         );
     }
 

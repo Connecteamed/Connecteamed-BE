@@ -35,12 +35,10 @@ public class RetrospectiveService {
     public RetrospectiveCreateRes createAiRetrospective(Long projectId, Long memberId, RetrospectiveCreateReq request){
 
         Project project = projectRepository.findByIdWithDetails(projectId)
-                .orElseThrow(() -> new RuntimeException("프로젝트를 찾을 수 없습니다."));
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
-        ProjectMember writer = project.getProjectMembers().stream()
-                .filter(pm -> pm.getId().equals(memberId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("팀원 정보를 찾을 수 없습니다."));
+        ProjectMember writer = projectMemberRepository.findById(memberId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
         List<Task> selectedTasks = taskRepository.findAllById(request.taskIds());
 

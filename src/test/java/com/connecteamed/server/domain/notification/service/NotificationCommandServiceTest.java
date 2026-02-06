@@ -4,6 +4,7 @@ import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.notification.entity.Notification;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
+import com.connecteamed.server.domain.notification.repository.NotificationTypeRepository;
 import com.connecteamed.server.domain.project.entity.Project;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,8 +14,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -23,6 +27,9 @@ public class NotificationCommandServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Mock
+    private NotificationTypeRepository notificationTypeRepository;
 
     @InjectMocks
     private NotificationCommandService notificationCommandService;
@@ -40,6 +47,9 @@ public class NotificationCommandServiceTest {
         NotificationType mockType = NotificationType.builder()
                 .typeKey(typeKey)
                 .build();
+
+        when(notificationTypeRepository.findByTypeKey(typeKey))
+                .thenReturn(Optional.of(mockType));
 
         // when
         notificationCommandService.send(receiver, sender, project, taskId, typeKey);
