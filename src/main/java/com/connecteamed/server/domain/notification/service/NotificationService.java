@@ -53,9 +53,9 @@ public class NotificationService {
         return NotificationRes.builder()
                 .id(notification.getId())
                 .notificationType(notification.getNotificationType().getTypeKey())
-                .title(notification.getProject().getName()) // 프로젝트 명을 타이틀로 사용
-                .content(notification.getContent())
-                .createdAt(calculateTimeAgo(notification.getCreatedAt())) // 시간 계산 호출
+                .title(notification.getProject().getName())
+                .content(notification.getNotificationType().getMessage())
+                .createdAt(calculateTimeAgo(notification.getCreatedAt()))
                 .isRead(notification.isRead())
                 .targetUrl(notification.getTargetUrl())
                 .build();
