@@ -1,6 +1,7 @@
 package com.connecteamed.server.domain.contribution.repository;
 
 import com.connecteamed.server.domain.contribution.entity.Contribution;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface ContributionRepository extends JpaRepository<Contribution, Long> {
+
+    // 중복 체크
+    boolean existsByUserIdAndActionTypeAndTargetId(Long userId, ContributionAction actionType, Long targetId);
 
     // 오늘 활동 횟수 조회
     @Query("SELECT COUNT(c) FROM Contribution c " +
