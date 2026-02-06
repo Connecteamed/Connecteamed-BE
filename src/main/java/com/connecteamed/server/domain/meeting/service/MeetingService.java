@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.meeting.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.meeting.dto.*;
 import com.connecteamed.server.domain.meeting.entity.Meeting;
 import com.connecteamed.server.domain.meeting.entity.MeetingAgenda;
@@ -7,12 +10,14 @@ import com.connecteamed.server.domain.meeting.entity.MeetingAttendee;
 import com.connecteamed.server.domain.meeting.repository.MeetingAgendaRepository;
 import com.connecteamed.server.domain.meeting.repository.MeetingAttendeeRepository;
 import com.connecteamed.server.domain.meeting.repository.MeetingRepository;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
+import com.connecteamed.server.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +35,8 @@ public class MeetingService {
     private final MeetingAttendeeRepository meetingAttendeeRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ContributionService  contributionService;
+    private final MemberRepository memberRepository;
 
     // 회의록 생성
     @Transactional
@@ -68,6 +75,10 @@ public class MeetingService {
 
         // 마지막에 저장
         Meeting savedMeeting = meetingRepository.save(meeting);
+
+        Long userId = getCurrentUserId();
+        contributionService.recordContribution(userId,
+                new ContributionReq(ContributionAction.MEETING_CREATE, savedMeeting.getId()));
 
         return new MeetingCreateRes(savedMeeting.getId(), savedMeeting.getCreatedAt());
     }
@@ -117,8 +128,19 @@ public class MeetingService {
             });
         }
 
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.MEETING_UPDATE, meeting.getId()));
+
         return getMeeting(meetingId);
     }
+
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED))
+                .getId();
+    }
+
     // 회의록 상세 조회
     public MeetingDetailRes getMeeting(Long meetingId) {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)

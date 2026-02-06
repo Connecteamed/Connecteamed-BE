@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.retrospective.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
@@ -29,6 +32,7 @@ public class RetrospectiveService {
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
     private final RetrospectiveAsyncService retrospectiveAsyncService;
+    private final ContributionService contributionService;
 
     // ai 회고 생성
     @Transactional
@@ -86,6 +90,9 @@ public class RetrospectiveService {
                 otherTasks
         );
 
+        contributionService.recordContribution(writer.getMember().getId(),
+                new ContributionReq(ContributionAction.RETROSPECTIVE_CREATE, saved.getId()));
+
         return new RetrospectiveCreateRes(saved.getId(), saved.getTitle());
     }
 
@@ -128,6 +135,9 @@ public class RetrospectiveService {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
         retrospective.update(request.title(), request.projectResult());
+
+        contributionService.recordContribution(memberId, // 여기선 memberId가 실제 Member ID라고 가정
+                new ContributionReq(ContributionAction.RETROSPECTIVE_UPDATE, retrospective.getId()));
     }
 
     // 회고 삭제

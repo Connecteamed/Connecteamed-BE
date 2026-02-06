@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.task.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
@@ -39,6 +42,7 @@ public class CompletedTaskService {
     private final TaskNoteRepository taskNoteRepository;
     private final MemberRepository  memberRepository;
     private final NotificationCommandService  notificationCommandService;
+    private final ContributionService contributionService;
 
     // 완료한 업무 목록 조회
     public CompletedTaskListRes getCompletedTasks(Long projectId) {
@@ -86,8 +90,13 @@ public class CompletedTaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
+        Long currentMemberId = getCurrentUserId();
+
         TaskStatus oldStatus = task.getStatus();
         task.updateStatus(taskStatus);
+
+        contributionService.recordContribution(currentMemberId,
+                new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         // 완료한 업무 상태 변경 시 알림 발송
         if (oldStatus == TaskStatus.DONE && taskStatus == TaskStatus.IN_PROGRESS) {
@@ -137,6 +146,9 @@ public class CompletedTaskService {
                 .orElseGet(() -> createNewNote(task, currentMemberId));
 
         note.updateContent(req.noteContent());
+
+        contributionService.recordContribution(currentMemberId,
+                new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         // 완료한 업무 정보 수정 시 알림 발송
         sendNotificationToOthers(task, "TASK_MODIFIED");

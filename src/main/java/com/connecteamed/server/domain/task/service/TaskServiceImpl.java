@@ -1,6 +1,10 @@
 package com.connecteamed.server.domain.task.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
@@ -16,6 +20,8 @@ import com.connecteamed.server.domain.task.exception.TaskErrorCode;
 import com.connecteamed.server.domain.task.exception.TaskException;
 import com.connecteamed.server.domain.task.repository.TaskAssigneeRepository;
 import com.connecteamed.server.domain.task.repository.TaskRepository;
+import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
+import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.SecurityUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +45,8 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectMemberRepository projectMemberRepository;
 
     private final NotificationCommandService  notificationCommandService;
+    private final ContributionService contributionService;
+    private final MemberRepository memberRepository;
 
     //업무 추가
     @Override
@@ -65,6 +73,9 @@ public class TaskServiceImpl implements TaskService {
 
         // 알림: 업무 태그
         sendNotificationToAllAssignees(saved, "TASK_TAGGED");
+
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_CREATE, saved.getId()));
 
         return saved.getId();
     }
@@ -134,6 +145,9 @@ public class TaskServiceImpl implements TaskService {
         TaskStatus oldStatus = task.getStatus();
         task.changeStatus(req.status());
 
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
+
         // 알림: 다시 진행 중 or 완료
         if (oldStatus == TaskStatus.DONE && req.status() == TaskStatus.IN_PROGRESS) {
             sendNotificationToOthers(task, "TASK_RESTARTED");
@@ -154,6 +168,9 @@ public class TaskServiceImpl implements TaskService {
 
         task.changeSchedule(req.startDate(), req.dueDate());
 
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
+
         // 알림: 업무 내용 수정
         sendNotificationToOthers(task, "TASK_MODIFIED");
     }
@@ -170,6 +187,9 @@ public class TaskServiceImpl implements TaskService {
 
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
+
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 새로 태그된 사람들에게 알림 발송
         sendNotificationToAllAssignees(task, "TASK_TAGGED");
@@ -252,5 +272,12 @@ public class TaskServiceImpl implements TaskService {
             result.add(new TaskAssigneeRes(projectMemberId, memberId , memberName));
         }
         return result;
+    }
+
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
+                .getId();
     }
 }

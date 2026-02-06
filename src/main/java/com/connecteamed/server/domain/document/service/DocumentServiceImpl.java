@@ -7,6 +7,9 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -47,6 +50,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final ProjectMemberRepository projectMemberRepository;
     private final S3StorageService s3StorageService;
     private final MemberRepository memberRepository;
+    private final ContributionService  contributionService;
 
     //문서 목록 조회
     @Override
@@ -141,6 +145,9 @@ public class DocumentServiceImpl implements DocumentService {
         Document d = Document.createText(projectRef, projectMember, req.title(), req.content());
         documentRepository.save(d);
 
+        contributionService.recordContribution(projectMember.getMember().getId(),
+                new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
+
         return new DocumentCreateRes(d.getId(), d.getCreatedAt().toString());
     }
 
@@ -165,6 +172,9 @@ public class DocumentServiceImpl implements DocumentService {
         Document d = Document.createFile(projectRef, projectMember, title, type, fileUrl);
         documentRepository.save(d);
 
+        contributionService.recordContribution(projectMember.getMember().getId(),
+                new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
+
         return new DocumentUploadRes(d.getId(), title, d.getCreatedAt().toString());
     }
 
@@ -180,6 +190,9 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         d.updateText(req.title(), req.content());
+
+        contributionService.recordContribution(d.getProjectMember().getMember().getId(),
+                new ContributionReq(ContributionAction.DOCUMENT_UPDATE, d.getId()));
     }
 
     //문서 삭제
