@@ -2,272 +2,399 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Connecteamed: Auto-Login & Presence Test</title>
+    <title>Connecteamed: Real-time Doc & List</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f9fafb; }
-        h1 { color: #111827; margin-bottom: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f3f4f6; color: #1f2937; }
+        h1 { color: #111827; margin-bottom: 20px; font-size: 24px; }
         
-        /* 섹션 공통 스타일 */
-        .section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .section h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-size: 16px; color: #374151; }
-        
-        /* 로그인 섹션 (초록 테마) */
-        .login-section { border-left: 5px solid #10b981; }
-        .login-grid { display: flex; gap: 10px; align-items: flex-end; }
-        
-        /* 연결 섹션 (파랑 테마) */
-        .connect-section { border-left: 5px solid #4f46e5; }
-        
-        .input-group { flex: 1; display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-        .input-group label { font-weight: 600; font-size: 13px; color: #4b5563; }
-        input[type="text"], input[type="password"] { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; }
+        /* 레이아웃 */
+        .grid-container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .main-content { display: flex; flex-direction: column; gap: 20px; }
+
+        /* 섹션 스타일 */
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-size: 16px; color: #4b5563; }
+
+        /* 입력 폼 */
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-weight: 600; font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+        input[type="text"], input[type="password"], input[type="number"] { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
         input:focus { outline: none; border-color: #4f46e5; ring: 2px solid #4f46e5; }
-
-        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: opacity 0.2s; color: white; white-space: nowrap; }
-        button:hover { opacity: 0.9; }
         
-        #loginBtn { background-color: #10b981; height: 42px; } /* Green */
-        #connectBtn { background-color: #4f46e5; } /* Blue */
-        #disconnectBtn { background-color: #ef4444; display: none; } /* Red */
+        /* 버튼 */
+        button { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; color: white; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-green { background-color: #10b981; }
+        .btn-blue { background-color: #4f46e5; }
+        .btn-red { background-color: #ef4444; }
+        .btn-gray { background-color: #6b7280; }
 
-        /* 접속자 목록 & 에디터 */
-        .presence-container { background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c7d2fe; }
-        .presence-title { font-size: 12px; font-weight: bold; color: #4338ca; margin-bottom: 8px; text-transform: uppercase; }
-        #userList { display: flex; gap: 8px; flex-wrap: wrap; }
-        .user-avatar { display: flex; align-items: center; gap: 6px; background: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-size: 13px; font-weight: 500; color: #374151; }
-        .user-dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; }
+        /* 문서 목록 */
+        .doc-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background 0.2s; }
+        .doc-item:hover { background-color: #f9fafb; }
+        .doc-item.active { background-color: #e0e7ff; border-left: 4px solid #4f46e5; }
+        .doc-info { display: flex; flex-direction: column; }
+        .doc-title { font-weight: 600; font-size: 14px; }
+        .doc-meta { font-size: 12px; color: #9ca3af; }
 
-        .container { display: flex; gap: 20px; }
-        .box { flex: 1; background: white; border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        textarea { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; line-height: 1.6; resize: none; font-family: monospace; min-height: 400px; }
-        #log { background: #1f2937; color: #10b981; height: 400px; overflow-y: scroll; font-size: 12px; padding: 15px; border-radius: 6px; font-family: monospace; }
-        .log-item { margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 2px; }
-        .log-in { color: #60a5fa; } .log-out { color: #f472b6; } .log-sys { color: #fbbf24; }
+        /* 에디터 & 로그 */
+        .editor-container { display: flex; flex-direction: column; height: 600px; }
+        textarea { flex: 1; padding: 15px; border: 1px solid #e5e7eb; border-radius: 6px; resize: none; font-family: monospace; line-height: 1.6; font-size: 14px; }
+        textarea:focus { outline: none; border-color: #4f46e5; }
+        
+        #log { background: #1f2937; color: #10b981; height: 150px; overflow-y: auto; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; margin-top: 10px; }
+        .log-item { border-bottom: 1px solid #374151; padding: 2px 0; }
+        .log-sys { color: #fbbf24; } .log-in { color: #60a5fa; }
+
+        /* 접속자 표시 */
+        .presence-bar { display: flex; gap: 8px; margin-bottom: 10px; min-height: 24px; align-items: center; }
+        .user-avatar { background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .user-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; }
+        
+        /* 상태 표시 */
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .status-disconnected { background: #fee2e2; color: #b91c1c; }
+        .status-connected { background: #d1fae5; color: #065f46; }
     </style>
 </head>
 <body>
 
-<h1>🚀 Connecteamed 통합 테스트</h1>
+<h1>🚀 Connecteamed 협업 시스템</h1>
 
-<div class="section login-section">
-    <h3>🔐 1. 로그인 (API 호출)</h3>
-    <div class="login-grid">
-        <div class="input-group">
-            <label>Login ID</label>
-            <input type="text" id="loginIdInput" value="string1" placeholder="아이디">
+<div class="grid-container">
+    <div class="sidebar">
+        
+        <div class="card">
+            <h3>🔐 1. 로그인</h3>
+            <div class="input-group">
+                <label>ID</label>
+                <input type="text" id="loginId" value="string1">
+            </div>
+            <div class="input-group">
+                <label>PW</label>
+                <input type="password" id="loginPw" value="string1">
+            </div>
+            <button id="loginBtn" class="btn-green">로그인</button>
+            <input type="hidden" id="accessToken">
         </div>
-        <div class="input-group">
-            <label>Password</label>
-            <input type="password" id="passwordInput" value="string1" placeholder="비밀번호">
-        </div>
-        <div class="input-group" style="flex: 0;">
-            <button id="loginBtn">로그인 & 토큰 받기</button>
-        </div>
-    </div>
-</div>
 
-<div class="section connect-section">
-    <h3>🔗 2. 문서 연결 (WebSocket)</h3>
-    <div class="input-group">
-        <label>JWT Token (로그인 시 자동 입력됨)</label>
-        <input type="text" id="tokenInput" placeholder="로그인 버튼을 누르면 자동으로 채워집니다..." readonly style="background-color: #f3f4f6;">
-    </div>
-    <div class="login-grid">
-        <div class="input-group">
-            <label>Doc ID (문서 번호)</label>
-            <input type="text" id="docIdInput" value="1">
+        <div class="card">
+            <h3>Bg 2. 프로젝트 선택</h3>
+            <div class="input-group">
+                <label>Project ID</label>
+                <input type="number" id="projectId" value="1">
+            </div>
+            <button id="loadDocsBtn" class="btn-blue">문서 목록 불러오기</button>
         </div>
-        <div class="input-group" style="flex: 0;">
-            <button id="connectBtn">소켓 연결</button>
-            <button id="disconnectBtn">연결 종료</button>
+
+        <div class="card">
+            <h3>📄 3. 문서 목록</h3>
+            <div class="input-group">
+                <input type="text" id="newDocTitle" placeholder="새 문서 제목 입력...">
+            </div>
+            <button id="createDocBtn" class="btn-gray" style="margin-bottom: 15px;">+ 새 문서 생성하기</button>
+            
+            <div style="border-top: 1px solid #f3f4f6; margin-bottom: 10px;"></div>
+            <ul id="docList" class="doc-list">
+                <li style="text-align:center; padding:20px; color:#9ca3af; font-size:13px;">프로젝트를 선택하고 불러오세요.</li>
+            </ul>
         </div>
     </div>
-</div>
 
-<div class="presence-container">
-    <div class="presence-title">현재 접속 중인 멤버 (<span id="userCount">0</span>명)</div>
-    <div id="userList">
-        <span style="color: #6b7280; font-size: 13px;">연결 대기 중...</span>
-    </div>
-</div>
+    <div class="main-content">
+        <div class="card editor-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="border:none; margin:0;">📝 에디터: <span id="currentDocTitle" style="color:#4f46e5;">선택된 문서 없음</span></h3>
+                <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+            </div>
 
-<div class="container">
-    <div class="box">
-        <h3>📝 에디터</h3>
-        <textarea id="editor" placeholder="연결되면 내용을 불러옵니다..."></textarea>
-    </div>
-    <div class="box">
-        <h3>📊 로그</h3>
-        <div id="log"></div>
+            <div class="presence-bar" id="presenceBar"></div>
+
+            <textarea id="editor" disabled placeholder="문서를 선택하면 연결됩니다..."></textarea>
+            
+            <div id="log"></div>
+            <button id="disconnectBtn" class="btn-red" style="margin-top:10px; display:none;">연결 종료</button>
+        </div>
     </div>
 </div>
 
 <script type="module">
     import * as Y from 'https://esm.sh/yjs@13.6.14';
 
-    // === 전역 변수 ===
+    // === 전역 상태 ===
     let ws = null;
     let ydoc = null;
     let ytext = null;
-    let myDocId = null;
+    let currentDocId = null;
+    const API_BASE = 'http://localhost:8080/api';
 
     // === DOM 요소 ===
-    const loginIdInput = document.getElementById('loginIdInput');
-    const passwordInput = document.getElementById('passwordInput');
-    const loginBtn = document.getElementById('loginBtn');
-    
-    const tokenInput = document.getElementById('tokenInput');
-    const docIdInput = document.getElementById('docIdInput');
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
-    
-    const editor = document.getElementById('editor');
-    const logDiv = document.getElementById('log');
-    const userListDiv = document.getElementById('userList');
-    const userCountSpan = document.getElementById('userCount');
-
-    // === [신규] 로그인 로직 ===
-    loginBtn.onclick = async () => {
-        const loginId = loginIdInput.value;
-        const password = passwordInput.value;
-
-        if(!loginId || !password) {
-            alert("아이디와 비밀번호를 입력하세요.");
-            return;
-        }
-
-        log(`Logging in as ${loginId}...`, 'sys');
-
-        try {
-            const response = await fetch('http://localhost:8080/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ loginId, password })
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                const accessToken = data.data.accessToken;
-                tokenInput.value = accessToken; // 토큰 자동 입력
-                log(`Login Successful! MemberID: ${data.data.memberId}`, 'sys');
-                // 편의를 위해 바로 연결 버튼 포커스
-                connectBtn.focus();
-            } else {
-                log(`Login Failed: ${data.message}`, 'sys');
-                alert("로그인 실패: " + data.message);
-            }
-
-        } catch (e) {
-            console.error(e);
-            log("Login Error (Check Console/CORS)", 'sys');
-            alert("서버 연결 실패. (CORS 설정을 확인하세요)");
-        }
+    const els = {
+        loginId: document.getElementById('loginId'),
+        loginPw: document.getElementById('loginPw'),
+        loginBtn: document.getElementById('loginBtn'),
+        accessToken: document.getElementById('accessToken'),
+        projectId: document.getElementById('projectId'),
+        loadDocsBtn: document.getElementById('loadDocsBtn'),
+        docList: document.getElementById('docList'),
+        newDocTitle: document.getElementById('newDocTitle'),
+        createDocBtn: document.getElementById('createDocBtn'),
+        editor: document.getElementById('editor'),
+        currentDocTitle: document.getElementById('currentDocTitle'),
+        connectionStatus: document.getElementById('connectionStatus'),
+        presenceBar: document.getElementById('presenceBar'),
+        disconnectBtn: document.getElementById('disconnectBtn'),
+        log: document.getElementById('log')
     };
 
     // === 유틸리티 ===
-    function toBase64(u8) { return btoa(String.fromCharCode(...u8)); }
-    function fromBase64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
     function log(msg, type='info') {
         const div = document.createElement('div');
         div.className = 'log-item';
-        div.innerHTML = `<span class="${type === 'sys' ? 'log-sys' : (type === 'in' ? 'log-in' : 'log-out')}">${msg}</span>`;
-        logDiv.prepend(div);
+        const colorClass = type === 'sys' ? 'log-sys' : (type === 'in' ? 'log-in' : '');
+        div.innerHTML = `<span class="${colorClass}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
+        els.log.prepend(div);
     }
+    
+    function toBase64(u8) { return btoa(String.fromCharCode(...u8)); }
+    function fromBase64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 
-    // === 접속자 렌더링 ===
-    function renderPresence(users) {
-        userListDiv.innerHTML = '';
-        userCountSpan.textContent = users.length;
-        users.forEach(user => {
-            const el = document.createElement('div');
-            el.className = 'user-avatar';
-            el.innerHTML = `<div class="user-dot"></div> ${user.userName}`;
-            userListDiv.appendChild(el);
+    // === 1. 로그인 ===
+    els.loginBtn.onclick = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loginId: els.loginId.value, password: els.loginPw.value })
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                els.accessToken.value = data.data.accessToken;
+                log(`✅ 로그인 성공 (MemberID: ${data.data.memberId})`, 'sys');
+                els.loginBtn.textContent = "로그인 완료";
+                els.loginBtn.disabled = true;
+                els.loginBtn.classList.replace('btn-green', 'btn-gray');
+                loadDocuments(); // 로그인 되자마자 목록 불러오기 시도
+            } else {
+                alert(data.message);
+            }
+        } catch (e) { log(`❌ 로그인 실패: ${e}`, 'sys'); }
+    };
+
+    // === 2. 문서 목록 조회 ===
+    async function loadDocuments() {
+        const token = els.accessToken.value;
+        const pId = els.projectId.value;
+        if (!token) return alert("로그인 먼저 해주세요.");
+
+        try {
+            const res = await fetch(`${API_BASE}/projects/${pId}/documents`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                renderDocList(data.data.documents);
+                log(`📄 문서 목록 ${data.data.documents.length}개 로드 완료`, 'sys');
+            }
+        } catch (e) { log(`❌ 목록 로드 실패: ${e}`, 'sys'); }
+    }
+    els.loadDocsBtn.onclick = loadDocuments;
+
+    function renderDocList(docs) {
+        els.docList.innerHTML = '';
+        if (docs.length === 0) {
+            els.docList.innerHTML = '<li style="padding:10px; text-align:center;">문서가 없습니다.</li>';
+            return;
+        }
+
+        docs.forEach(doc => {
+            const li = document.createElement('li');
+            li.className = 'doc-item';
+            li.innerHTML = `
+                <div class="doc-info">
+                    <span class="doc-title">📄 ${doc.title}</span>
+                    <span class="doc-meta">ID: ${doc.documentId} | ${doc.uploaderName} | ${doc.uploadDate}</span>
+                </div>
+                <button class="btn-blue" style="width:auto; padding:5px 10px; font-size:12px;">Join</button>
+            `;
+            // Join 버튼 클릭 시 소켓 연결
+            li.onclick = () => connectWebSocket(doc.documentId, doc.title);
+            els.docList.appendChild(li);
         });
     }
 
-    // === 연결 로직 ===
-    connectBtn.onclick = () => {
-        const token = tokenInput.value.trim();
-        const docId = docIdInput.value.trim();
+    // === 3. 새 문서 생성 ===
+    els.createDocBtn.onclick = async () => {
+        const title = els.newDocTitle.value;
+        const token = els.accessToken.value;
+        const pId = els.projectId.value;
 
-        if (!token) { alert("먼저 로그인을 진행해주세요!"); return; }
-        if (ws) { ws.close(); }
+        if (!title) return alert("제목을 입력하세요.");
+        if (!token) return alert("로그인 필요");
 
-        myDocId = docId;
+        try {
+            const res = await fetch(`${API_BASE}/projects/${pId}/documents/text`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ title: title }) // content 없이 제목만 보냄
+            });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                log(`✨ 새 문서 생성됨 (ID: ${data.data.documentId})`, 'sys');
+                els.newDocTitle.value = '';
+                await loadDocuments(); // 목록 갱신
+                // 바로 연결
+                connectWebSocket(data.data.documentId, title);
+            }
+        } catch (e) { log(`❌ 생성 실패: ${e}`, 'sys'); }
+    };
+
+    // === 4. WebSocket 연결 & Yjs ===
+    function connectWebSocket(docId, title) {
+        if (ws) {
+            sendSnapshot(); // 연결 끊기 전 자동 저장
+            ws.close();
+        }
+
+        currentDocId = docId;
+        els.currentDocTitle.textContent = `${title} (ID: ${docId})`;
+        els.editor.value = "연결 중...";
+        els.editor.disabled = true;
+
+        const token = els.accessToken.value;
+        
+        // Yjs 초기화
         ydoc = new Y.Doc();
         ytext = ydoc.getText('content');
 
-        // 바인딩
+        // Editor <-> Yjs 바인딩
         ytext.observe(() => {
-            if (editor.value !== ytext.toString()) {
-                const pos = editor.scrollTop;
-                editor.value = ytext.toString();
-                editor.scrollTop = pos;
+            if (els.editor.value !== ytext.toString()) {
+                const pos = els.editor.scrollTop;
+                els.editor.value = ytext.toString();
+                els.editor.scrollTop = pos;
             }
         });
 
-        editor.oninput = () => {
+        els.editor.oninput = () => {
             ydoc.transact(() => {
                 ytext.delete(0, ytext.length);
-                ytext.insert(0, editor.value);
+                ytext.insert(0, els.editor.value);
             });
         };
 
         ydoc.on('update', (update, origin) => {
             if (origin !== 'ws' && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: "UPDATE", docId: myDocId, payload: toBase64(update) }));
+                ws.send(JSON.stringify({ 
+                    type: "UPDATE", 
+                    docId: currentDocId, 
+                    payload: toBase64(update) 
+                }));
             }
         });
 
         // 소켓 연결
-        const wsUrl = `ws://localhost:8080/ws/docs/${docId}?token=${token}`;
-        log(`Connecting...`, 'sys');
-        ws = new WebSocket(wsUrl);
+        log(`Connecting to Doc ${docId}...`, 'sys');
+        ws = new WebSocket(`ws://localhost:8080/ws/docs/${docId}?token=${token}`);
 
         ws.onopen = () => {
-            log("Connected!", 'sys');
-            connectBtn.style.display = 'none';
-            disconnectBtn.style.display = 'inline-block';
-            ws.send(JSON.stringify({ type: "JOIN", docId: myDocId }));
+            log("🔌 WebSocket Connected", 'sys');
+            els.connectionStatus.textContent = "Connected";
+            els.connectionStatus.classList.replace('status-disconnected', 'status-connected');
+            els.editor.disabled = false;
+            els.disconnectBtn.style.display = 'block';
+            
+            // 입장 메시지
+            ws.send(JSON.stringify({ type: "JOIN", docId: currentDocId }));
         };
 
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
+            
             if (msg.type === "INITIAL_LOAD") {
-                log("DB Loaded", 'in');
+                log("📥 DB 데이터 로드됨", 'in');
+                const content = msg.payload; // "[]" 또는 "['base64', ...]"
+                
                 try {
-                    const parsed = JSON.parse(msg.payload);
-                    if (Array.isArray(parsed)) {
-                        ydoc.transact(() => parsed.forEach(u => Y.applyUpdate(ydoc, fromBase64(u), 'ws')));
-                    } else { throw new Error(); }
-                } catch {
-                    ydoc.transact(() => { ytext.delete(0, ytext.length); ytext.insert(0, msg.payload); }, 'ws');
+                    // 1. 압축된 Yjs 상태가 있는지 확인 (만약 서버가 'optimized' 된 걸 주면)
+                    // 현재 서버 로직상 INITIAL_LOAD는 String(content)를 그대로 줌.
+                    // 만약 JSON Array 형태라면 히스토리 재생
+                    if (content.trim().startsWith("[")) {
+                        const parsed = JSON.parse(content);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            ydoc.transact(() => {
+                                parsed.forEach(u => Y.applyUpdate(ydoc, fromBase64(u), 'ws'));
+                            });
+                        }
+                    } else {
+                        // 일반 텍스트라면 (혹시 모르니)
+                         ydoc.transact(() => {
+                            ytext.delete(0, ytext.length);
+                            ytext.insert(0, content);
+                        }, 'ws');
+                    }
+                } catch (e) {
+                    console.warn("Parse error, assuming empty or raw text");
                 }
-            } else if (msg.type === "UPDATE") {
+            } 
+            else if (msg.type === "UPDATE") {
                 Y.applyUpdate(ydoc, fromBase64(msg.payload), 'ws');
-            } else if (msg.type === "PRESENCE_UPDATE") {
+            } 
+            else if (msg.type === "PRESENCE_UPDATE") {
                 const users = JSON.parse(msg.payload);
-                log(`Users: ${users.length}`, 'in');
                 renderPresence(users);
             }
         };
 
         ws.onclose = () => {
-            log("Disconnected", 'sys');
-            connectBtn.style.display = 'inline-block';
-            disconnectBtn.style.display = 'none';
-            userListDiv.innerHTML = '<span>연결 끊김</span>';
+            log("🔌 Disconnected", 'sys');
+            els.connectionStatus.textContent = "Disconnected";
+            els.connectionStatus.classList.replace('status-connected', 'status-disconnected');
+            els.editor.disabled = true;
+            els.presenceBar.innerHTML = '';
+            els.disconnectBtn.style.display = 'none';
             ws = null;
         };
-    };
+    }
 
-    disconnectBtn.onclick = () => {
-        if(ws) {
+    function renderPresence(users) {
+        els.presenceBar.innerHTML = '';
+        users.forEach(user => {
+            const div = document.createElement('div');
+            div.className = 'user-avatar';
+            div.innerHTML = `<div class="user-dot"></div> ${user.userName}`;
+            els.presenceBar.appendChild(div);
+        });
+    }
+
+    // === 연결 종료 및 스냅샷 저장 ===
+    function sendSnapshot() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            // 압축 저장 로직
+            const stateUpdate = Y.encodeStateAsUpdate(ydoc);
+            const compressed = toBase64(stateUpdate);
+            const plain = els.editor.value;
+
+            ws.send(JSON.stringify({
+                type: "SAVE_SNAPSHOT",
+                docId: currentDocId,
+                payload: plain,
+                content: compressed
+            }));
+            log("💾 스냅샷(압축) 전송함", 'sys');
+        }
+    }
+
+    els.disconnectBtn.onclick = () => {
+        if (ws) {
             sendSnapshot();
             ws.close();
         }
@@ -277,25 +404,6 @@
         if (ws && ws.readyState === WebSocket.OPEN) sendSnapshot();
     });
 
-    function sendSnapshot() {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            // 1. 사람용 텍스트 (기존)
-            const plainText = editor.value;
-
-            // 2. ★ [핵심] Yjs 데이터를 하나로 압축 (Encode State As Update)
-            // 문서의 모든 히스토리를 하나의 Uint8Array로 만듭니다.
-            const stateUpdate = Y.encodeStateAsUpdate(ydoc);
-            const compressedContent = toBase64(stateUpdate); // Base64 문자열 하나로 변환
-
-            const msg = {
-                type: "SAVE_SNAPSHOT",
-                docId: myDocId,
-                payload: plainText,     // 사람용
-                content: compressedContent // ★ 기계용 (압축된 Yjs 데이터)
-            };
-            ws.send(JSON.stringify(msg));
-        }
-    }
 </script>
 </body>
 </html>
