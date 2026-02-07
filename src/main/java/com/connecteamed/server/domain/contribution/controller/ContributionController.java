@@ -20,15 +20,6 @@ public class ContributionController {
 
     private final ContributionService contributionService;
 
-    @PostMapping
-    @Operation(summary = "활동 기록 등록", description = "업무 완료, 회의 생성 등 유저의 활동을 기록하고 오늘의 잔디 상태를 반환합니다.")
-    public ApiResponse<ContributionRes> recordContribution(
-            @AuthenticationPrincipal Long userId,
-            @RequestBody ContributionReq request
-    ) {
-        return ApiResponse.onSuccess(GeneralSuccessCode._OK, contributionService.recordContribution(userId, request));
-    }
-
     @GetMapping("/calendar")
     @Operation(summary = "연간 잔디 조회", description = "특정 연도의 1월 1일부터 12월 31일까지의 모든 잔디 데이터를 조회합니다.")
     public ApiResponse<CalendarContributionRes> getCalendar(
