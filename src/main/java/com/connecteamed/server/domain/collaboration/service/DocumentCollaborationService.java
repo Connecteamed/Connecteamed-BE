@@ -41,12 +41,14 @@ public class DocumentCollaborationService {
     }
 
     /**
-     * [저장] Redis의 변경분(newUpdates)을 기존 DB 히스토리와 병합하여 저장
-     * @Transactional: 트랜잭션 범위 안에서 Dirty Checking으로 저장
-     */
-/**
-     * [저장] Redis의 데이터(History/Snapshot)를 DB에 반영
-     * @param compressedYjs : 클라이언트가 압축해서 보낸 Yjs 상태 (있으면 이걸로 덮어쓰기 - 최적화)
+     * [저장] Redis에 캐시된 문서 데이터(History/Snapshot)를 DB에 최종 반영합니다.
+     * 클라이언트로부터 압축된 Yjs 상태(compressedYjs)를 받으면, 기존 content를 덮어쓰는 최적화를 수행합니다.
+     * 압축 상태가 없으면, Redis에 쌓인 변경분(newUpdates)을 기존 DB 히스토리에 추가(append)합니다.
+     *
+     * @param docId 문서 ID
+     * @param newUpdates Redis에 캐시된 Yjs 변경분 목록
+     * @param latestSnapshot Redis에 캐시된 최신 plain text 스냅샷
+     * @param compressedYjs 클라이언트가 보낸 압축된 최종 Yjs 상태
      */
     @Transactional
     public void saveAndFlushHistory(String docId, List<Object> newUpdates, String latestSnapshot, String compressedYjs) {
