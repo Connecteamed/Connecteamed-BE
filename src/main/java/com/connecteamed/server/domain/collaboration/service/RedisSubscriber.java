@@ -1,8 +1,12 @@
 package com.connecteamed.server.domain.collaboration.service;
 
+import org.springframework.data.redis.connection.Message;
+import org.springframework.data.redis.connection.MessageListener;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import com.connecteamed.server.domain.collaboration.controller.CollabSocketController;
+import com.connecteamed.server.domain.collaboration.controller.ProjectPresenceController;
 import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -12,21 +16,32 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RedisSubscriber {
+public class RedisSubscriber implements MessageListener {
 
     private final ObjectMapper objectMapper;
-    private final CollabSocketController socketController;
+    private final RedisTemplate<String, Object> redisTemplate;
+    
+    private final CollabSocketController collabController;
+    private final ProjectPresenceController projectPresenceController; // ★ 주입 추가
 
-    /**
-     * Redis 메시지 리스너 (RedisConfig에서 등록됨)
-     */
-    public void onMessage(String messageJson) {
+    @Override
+    public void onMessage(Message message, byte[] pattern) {
         try {
-            SocketMessage msg = objectMapper.readValue(messageJson, SocketMessage.class);
-            // 핸들러를 통해 현재 서버에 붙은 클라이언트들에게 전송
-            socketController.broadcastToLocal(msg);
+            String publishMessage = (String) redisTemplate.getStringSerializer().deserialize(message.getBody());
+            SocketMessage msg = objectMapper.readValue(publishMessage, SocketMessage.class);
+
+            String channel = new String(message.getChannel());
+
+            if ("doc-channel".equals(channel)) {
+                collabController.broadcastToLocal(msg);
+            } 
+            // ★ [추가] 프로젝트 채널 메시지 처리
+            else if ("project-channel".equals(channel)) {
+                projectPresenceController.broadcastToLocalSessions(msg);
+            }
+
         } catch (Exception e) {
-            log.error("Redis message receive error", e);
+            log.error("Redis onMessage error: " + e.getMessage());
         }
     }
 }
