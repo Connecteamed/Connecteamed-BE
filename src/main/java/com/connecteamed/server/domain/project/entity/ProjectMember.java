@@ -2,6 +2,8 @@ package com.connecteamed.server.domain.project.entity;
 
 
 import com.connecteamed.server.domain.member.entity.Member;
+import com.connecteamed.server.domain.task.entity.Task;
+import com.connecteamed.server.domain.task.entity.TaskAssignee;
 import com.connecteamed.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -40,4 +42,13 @@ public class ProjectMember extends BaseEntity {
     @OneToMany(mappedBy = "projectMember", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectMemberRole> roles = new ArrayList<>();
 
+    @Builder.Default
+    @OneToMany(mappedBy = "projectMember")
+    private List<TaskAssignee> taskAssignees = new ArrayList<>();
+
+    public List<Task> getTasks() {
+        return this.taskAssignees.stream()
+                .map(TaskAssignee::getTask)
+                .toList();
+    }
 }

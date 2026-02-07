@@ -39,7 +39,7 @@ public class RetrospectiveServiceTest {
     @Mock
     private TaskRepository taskRepository;
     @Mock
-    private GeminiProvider geminiProvider;
+    private RetrospectiveAsyncService retrospectiveAsyncService;
 
     @InjectMocks
     private RetrospectiveService retrospectiveService;
@@ -66,7 +66,6 @@ public class RetrospectiveServiceTest {
         given(projectRepository.findById(projectId)).willReturn(Optional.of(project));
         given(projectMemberRepository.findById(memberId)).willReturn(Optional.of(writer));
         given(taskRepository.findAllById(any())).willReturn(tasks);
-        given(geminiProvider.getAnalysis(any(), any())).willReturn("AI가 분석한 아주 멋진 결과");
         given(aiRetrospectiveRepository.save(any())).willReturn(spyRetrospective);
 
         // when
@@ -75,8 +74,11 @@ public class RetrospectiveServiceTest {
         // then
         assertNotNull(result);
         assertEquals(mockRetrospectiveId, result.retrospectiveId());
-        verify(aiRetrospectiveRepository, times(1)).save(any()); // 저장이 한 번 일어났는지 확인
-        verify(geminiProvider, times(1)).getAnalysis(any(), any()); // AI 분석을 호출했는지 확인
+        verify(aiRetrospectiveRepository, times(1)).save(any());
+        verify(retrospectiveAsyncService, times(1)).processAiAnalysis(
+                eq(mockRetrospectiveId),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()
+        );
     }
 
     @Test
