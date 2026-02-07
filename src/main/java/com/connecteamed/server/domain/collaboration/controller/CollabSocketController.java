@@ -20,6 +20,9 @@ import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
 import com.connecteamed.server.domain.collaboration.dto.UserPresenceDto;
 import com.connecteamed.server.domain.collaboration.service.DocumentCollaborationService;
 import com.connecteamed.server.domain.collaboration.service.PresenceService;
+import com.connecteamed.server.domain.document.entity.Document;
+import com.connecteamed.server.domain.document.repository.DocumentRepository;
+import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -32,7 +35,9 @@ public class CollabSocketController extends TextWebSocketHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final  PresenceService presenceService;
+    private final PresenceService presenceService;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final DocumentRepository documentRepository;
 
     private final DocumentCollaborationService collabService;
 
@@ -50,6 +55,30 @@ public class CollabSocketController extends TextWebSocketHandler {
         
         // ★ [추가] Interceptor에서 넣어둔 유저 정보 가져오기
         UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
+
+        Document document = documentRepository.findById(Long.parseLong(docId)).orElse(null);
+        
+        if (document == null) {
+            log.error("Document not found: {}", docId);
+            session.close(CloseStatus.BAD_DATA);
+            return;
+        }
+
+        // 2. [핵심] 프로젝트 멤버인지 확인
+        // "이 문서의 프로젝트 ID"와 "유저의 로그인 ID"로 검사합니다.
+        boolean isProjectMember = projectMemberRepository.existsByProjectIdAndMemberLoginId(
+                document.getProject().getId(), 
+                user.getUserId() // "string1"
+        );
+
+        if (!isProjectMember) {
+            log.warn("Unauthorized: User {} is not a member of Project {}", user.getUserId(), document.getProject().getId());
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
+
+        // 3. 인증 성공 표시 (퇴장 로직 오류 방지용)
+        session.getAttributes().put("authorized", true);
 
         if (user != null) {
             // Redis 출석부에 등록 (문서별 접속자 관리)
@@ -108,6 +137,9 @@ public class CollabSocketController extends TextWebSocketHandler {
     // 3. 퇴장 시
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        if (session.getAttributes().get("authorized") == null) {
+            return; 
+        }
         String docId = (String) session.getAttributes().get("docId");
         UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
         
