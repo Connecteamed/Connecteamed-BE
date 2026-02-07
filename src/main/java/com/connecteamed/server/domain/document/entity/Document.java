@@ -60,14 +60,14 @@ public class Document extends BaseEntity {
         }
     }
 
-    public static Document createText(Project project, ProjectMember projectMember, String title, String content) {
+    public static Document createText(Project project, ProjectMember projectMember, String title) {
         return Document.builder()
                 .project(project)
                 .projectMember(projectMember)
                 .title(title)
                 .fileType(DocumentFileType.TEXT)
                 .fileUrl(null)
-                .content(content)
+                .content("[]")
                 .plainText("")
                 .deletedAt(null)
                 .build();
