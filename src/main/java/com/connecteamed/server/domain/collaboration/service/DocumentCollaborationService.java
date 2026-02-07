@@ -28,9 +28,16 @@ public class DocumentCollaborationService {
      */
     @Transactional(readOnly = true)
     public String getDocumentContent(String docId) {
-        // ID 파싱 에러 방지를 위해 try-catch 혹은 Long 변환 주의
+        // 1. ID로 조회 (없으면 null 리턴)
         Document doc = documentRepository.findById(Long.parseLong(docId)).orElse(null);
-        return (doc != null) ? doc.getContent() : null;
+        
+        if (doc == null) return null;
+        
+        // 2. 내용 가져오기
+        String content = doc.getContent();
+
+        // 3. 내용이 없으면 "[]" (빈 리스트)를 줘서 프론트엔드 오류 방지
+        return (content == null || content.isEmpty()) ? "[]" : content; 
     }
 
     /**
