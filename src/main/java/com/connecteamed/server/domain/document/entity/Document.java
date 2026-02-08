@@ -44,7 +44,7 @@ public class Document extends BaseEntity {
     private String fileUrl;
 
     @Lob
-    @Column(name = "content", columnDefinition = "LONGTEXT")
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "plain_text", columnDefinition = "TEXT")
