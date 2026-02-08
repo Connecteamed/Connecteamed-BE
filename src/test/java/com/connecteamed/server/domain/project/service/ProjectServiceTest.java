@@ -1,13 +1,20 @@
 package com.connecteamed.server.domain.project.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.enums.SocialType;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
+import com.connecteamed.server.domain.notification.service.NotificationCommandService;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.domain.project.code.ProjectErrorCode;
 import com.connecteamed.server.domain.project.dto.ProjectCreateReq;
 import com.connecteamed.server.domain.project.dto.ProjectRes;
 import com.connecteamed.server.domain.project.dto.ProjectUpdateReq;
 import com.connecteamed.server.domain.project.entity.Project;
+import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.entity.ProjectRequiredRole;
 import com.connecteamed.server.domain.project.entity.ProjectRole;
 import com.connecteamed.server.domain.project.enums.ProjectStatus;
@@ -20,6 +27,7 @@ import com.connecteamed.server.global.util.S3Uploader;
 import com.connecteamed.server.global.util.SecurityUtil;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -32,6 +40,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProjectService 테스트")
@@ -54,6 +63,12 @@ class ProjectServiceTest {
 
     @Mock
     private ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private ContributionService contributionService;
+
+    @Mock
+    private NotificationHelper notificationHelper;
 
     private static MockedStatic<SecurityUtil> mockedSecurityUtil;
 
@@ -141,6 +156,12 @@ class ProjectServiceTest {
         assertNotNull(response.getCreatedAt());
         verify(projectRepository, times(1)).save(any(Project.class));
         verify(projectRequiredRoleRepository, times(3)).save(any(ProjectRequiredRole.class));
+
+        ArgumentCaptor<ContributionReq> contribCaptor = ArgumentCaptor.forClass(ContributionReq.class);
+        verify(contributionService).recordContribution(eq(testMember.getId()), contribCaptor.capture());
+
+        assertThat(contribCaptor.getValue().actionType()).isEqualTo(ContributionAction.PROJECT_CREATE);
+        assertThat(contribCaptor.getValue().targetId()).isEqualTo(testProject.getId());
     }
 
     @Test
@@ -265,6 +286,8 @@ class ProjectServiceTest {
     @Test
     @DisplayName("프로젝트 수정 성공")
     void updateProject_Success() {
+        mockedSecurityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn("test@example.com");
+
         // given
         ProjectUpdateReq updateReq = ProjectUpdateReq.builder()
                 .name("UMC 8기")
@@ -274,6 +297,7 @@ class ProjectServiceTest {
 
         when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
         when(projectRepository.findByName("UMC 8기")).thenReturn(Optional.empty());
+        when(memberRepository.findByLoginId("test@example.com")).thenReturn(Optional.of(testMember));
         when(projectRequiredRoleRepository.findByProjectId(1L)).thenReturn(new ArrayList<>());
         when(projectRoleRepository.findByRoleName("DESIGNER")).thenReturn(Optional.of(designerRole));
         when(projectRoleRepository.findByRoleName("SERVER")).thenReturn(Optional.of(serverRole));
@@ -286,6 +310,8 @@ class ProjectServiceTest {
         assertEquals(1L, response.getProjectId());
         verify(projectRequiredRoleRepository, times(1)).deleteAll(any());
         verify(projectRequiredRoleRepository, times(2)).save(any(ProjectRequiredRole.class));
+        verify(contributionService).recordContribution(eq(testMember.getId()),
+                argThat(c -> c.actionType() == ContributionAction.PROJECT_UPDATE));
     }
 
     @Test
@@ -305,6 +331,7 @@ class ProjectServiceTest {
                 projectService.updateProject(1L, updateReq)
         );
         assertEquals(ProjectErrorCode.PROJECT_NOT_FOUND, exception.getCode());
+        verifyNoInteractions(contributionService);
     }
 
     @Test
@@ -339,6 +366,11 @@ class ProjectServiceTest {
     @DisplayName("프로젝트 종료 성공")
     void closeProject_Success() {
         // given
+        ProjectMember pm = ProjectMember.builder()
+                .id(10L)
+                .project(testProject)
+                .member(testMember)
+                .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
 
         // when
@@ -349,6 +381,11 @@ class ProjectServiceTest {
         assertEquals(1L, response.getProjectId());
         assertEquals(ProjectStatus.COMPLETED, response.getStatus());
         assertNotNull(response.getClosedAt());
+
+        verify(notificationHelper, times(1)).sendToAllProjectMembers(
+                eq(testProject),
+                eq(NotificationCategory.PROJECT_COMPLETED)
+        );
     }
 
     @Test
@@ -362,6 +399,7 @@ class ProjectServiceTest {
                 projectService.closeProject(1L)
         );
         assertEquals(ProjectErrorCode.PROJECT_NOT_FOUND, exception.getCode());
+        verifyNoInteractions(notificationHelper);
     }
 }
 

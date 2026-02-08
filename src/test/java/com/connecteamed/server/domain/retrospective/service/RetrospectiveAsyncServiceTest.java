@@ -22,7 +22,7 @@ class RetrospectiveAsyncServiceTest {
     private GeminiProvider geminiProvider;
 
     @Mock
-    private AiRetrospectiveRepository aiRetrospectiveRepository;
+    private RetrospectiveUpdateService retrospectiveUpdateService;
 
     @InjectMocks
     private RetrospectiveAsyncService retrospectiveAsyncService;
@@ -34,13 +34,8 @@ class RetrospectiveAsyncServiceTest {
         Long retrospectiveId = 1L;
         String mockAnalysisResult = "STAR 기법으로 정리된 분석 결과입니다.";
 
-        AiRetrospective mockRetrospective = mock(AiRetrospective.class);
-
         given(geminiProvider.getAnalysis(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
                 .willReturn(mockAnalysisResult);
-
-        given(aiRetrospectiveRepository.findById(retrospectiveId))
-                .willReturn(Optional.of(mockRetrospective));
 
         // when
         retrospectiveAsyncService.processAiAnalysis(
@@ -52,6 +47,7 @@ class RetrospectiveAsyncServiceTest {
         verify(geminiProvider, times(1)).getAnalysis(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
 
         // 엔티티의 update 메서드가 분석 결과와 함께 호출되었는지 확인
-        verify(mockRetrospective, times(1)).update(any(), eq(mockAnalysisResult));
+        verify(retrospectiveUpdateService, times(1))
+                .updateRetrospectiveResult(eq(retrospectiveId), eq(mockAnalysisResult));
     }
 }

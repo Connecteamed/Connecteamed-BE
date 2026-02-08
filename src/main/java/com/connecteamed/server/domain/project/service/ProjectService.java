@@ -1,8 +1,11 @@
 package com.connecteamed.server.domain.project.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
-import com.connecteamed.server.domain.notification.entity.NotificationType;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationTypeRepository;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
 import com.connecteamed.server.domain.project.code.ProjectErrorCode;
@@ -17,9 +20,11 @@ import com.connecteamed.server.domain.project.repository.ProjectMemberRepository
 import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRequiredRoleRepository;
 import com.connecteamed.server.domain.project.repository.ProjectRoleRepository;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.S3Uploader;
+import com.connecteamed.server.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +50,8 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final NotificationCommandService  notificationCommandService;
+    private final NotificationHelper notificationHelper;
+    private final ContributionService contributionService;
 
     /**
      * 프로젝트 생성
@@ -127,6 +134,8 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
+        contributionService.recordContribution(owner.getId(),
+                new ContributionReq(ContributionAction.PROJECT_CREATE, savedProject.getId()));
 
         // 4. 응답 반환
         log.info("[ProjectService] Returning CreateResponse: projectId={}", savedProject.getId());
@@ -222,6 +231,8 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.PROJECT_UPDATE, project.getId()));
 
         // 6. 응답 반환
         log.info("[ProjectService] Returning CreateResponse: projectId={}", project.getId());
@@ -253,7 +264,7 @@ public class ProjectService {
                 project.getId(), project.getStatus(), project.getClosedAt());
 
         // 알림: 프로젝트 종료
-        sendProjectCompletionNotification(project);
+        notificationHelper.sendToAllProjectMembers(project, NotificationCategory.PROJECT_COMPLETED);
 
         // 3. 응답 반환
         return ProjectRes.CloseResponse.builder()
@@ -263,19 +274,11 @@ public class ProjectService {
                 .build();
     }
 
-    // 프로젝트 종료 알림 로직
-    private void sendProjectCompletionNotification(Project project) {
-        List<ProjectMember> members = projectMemberRepository.findAllByProjectId(project.getId());
-
-        for (ProjectMember pm : members) {
-            notificationCommandService.send(
-                    pm.getMember(),
-                    null,
-                    project,
-                    null,
-                    "PROJECT_COMPLETED"
-            );
-        }
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
+                .getId();
     }
 }
 

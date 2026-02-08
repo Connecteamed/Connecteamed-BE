@@ -1,9 +1,12 @@
 package com.connecteamed.server.domain.task.service;
 
-import com.connecteamed.server.domain.member.entity.Member;
-import com.connecteamed.server.domain.notification.entity.NotificationType;
-import com.connecteamed.server.domain.notification.repository.NotificationRepository;
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
@@ -16,6 +19,8 @@ import com.connecteamed.server.domain.task.exception.TaskErrorCode;
 import com.connecteamed.server.domain.task.exception.TaskException;
 import com.connecteamed.server.domain.task.repository.TaskAssigneeRepository;
 import com.connecteamed.server.domain.task.repository.TaskRepository;
+import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
+import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.SecurityUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +44,9 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectMemberRepository projectMemberRepository;
 
     private final NotificationCommandService  notificationCommandService;
+    private final ContributionService contributionService;
+    private final MemberRepository memberRepository;
+    private final NotificationHelper notificationHelper;
 
     //업무 추가
     @Override
@@ -64,7 +72,10 @@ public class TaskServiceImpl implements TaskService {
         attachAssignees(saved, projectId, assigneeIds);
 
         // 알림: 업무 태그
-        sendNotificationToAllAssignees(saved, "TASK_TAGGED");
+        notificationHelper.sendToAllAssignees(saved, NotificationCategory.TASK_TAGGED);
+
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_CREATE, saved.getId()));
 
         return saved.getId();
     }
@@ -131,14 +142,20 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
+        Long currentMemberId = getCurrentUserId();
+        validateProjectAccess(task.getProject().getId(), currentMemberId);
+
         TaskStatus oldStatus = task.getStatus();
         task.changeStatus(req.status());
 
+        contributionService.recordContribution(currentMemberId,
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
+
         // 알림: 다시 진행 중 or 완료
         if (oldStatus == TaskStatus.DONE && req.status() == TaskStatus.IN_PROGRESS) {
-            sendNotificationToOthers(task, "TASK_RESTARTED");
+            notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
         } else if (req.status() == TaskStatus.DONE) {
-            sendNotificationToOthers(task, "TASK_COMPLETED");
+            notificationHelper.sendToOthers(task, NotificationCategory.TASK_COMPLETED);
         }
     }
 
@@ -148,14 +165,19 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
+        validateProjectAccess(task.getProject().getId(), getCurrentUserId());
+
         if (req.startDate().isAfter(req.dueDate())) {
             throw new TaskException(TaskErrorCode.INVALID_SCHEDULE);
         }
 
         task.changeSchedule(req.startDate(), req.dueDate());
 
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
+
         // 알림: 업무 내용 수정
-        sendNotificationToOthers(task, "TASK_MODIFIED");
+        notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
     }
 
     // 업무 담당자 변경
@@ -165,14 +187,18 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
         Long projectId = task.getProject().getId();
+        validateProjectAccess(projectId, getCurrentUserId());
 
         taskAssigneeRepository.deleteAllByTask(task);
 
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
 
+        contributionService.recordContribution(getCurrentUserId(),
+                new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
+
         // 알림: 새로 태그된 사람들에게 알림 발송
-        sendNotificationToAllAssignees(task, "TASK_TAGGED");
+        notificationHelper.sendToAllAssignees(task, NotificationCategory.TASK_TAGGED);
     }
 
     // 업무 삭제 TODO: Completed Task 겹침 
@@ -181,33 +207,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
+        validateProjectAccess(task.getProject().getId(), getCurrentUserId());
+
         task.softDelete();
-    }
-
-    // 본인을 제외한 공동 담당자들에게 알림 발송
-    private void sendNotificationToOthers(Task task, String typeKey) {
-        String currentLoginId = SecurityUtil.getCurrentLoginId();
-        List<TaskAssignee> assignees = taskAssigneeRepository.findAllByTask(task);
-
-
-        for (TaskAssignee ta : assignees) {
-            Member receiver = ta.getProjectMember().getMember();
-            if (receiver != null && !receiver.getLoginId().equals(currentLoginId)) {
-                notificationCommandService.send(receiver, null, task.getProject(), task.getId(), typeKey);
-            }
-        }
-    }
-
-    // 모든 담당자들에게 알림 발송 (업무 생성/태그)
-    private void sendNotificationToAllAssignees(Task task, String typeKey) {
-        List<TaskAssignee> assignees = taskAssigneeRepository.findAllByTask(task);
-
-        for (TaskAssignee ta : assignees) {
-            Member receiver = ta.getProjectMember().getMember();
-            if (receiver != null) {
-                notificationCommandService.send(receiver, null, task.getProject(), task.getId(), typeKey);
-            }
-        }
     }
 
     private void attachAssignees(Task task, Long projectId, List<Long> projectMemberIds) {
@@ -252,5 +254,18 @@ public class TaskServiceImpl implements TaskService {
             result.add(new TaskAssigneeRes(projectMemberId, memberId , memberName));
         }
         return result;
+    }
+
+    private Long getCurrentUserId() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자 정보를 찾을 수 없습니다."))
+                .getId();
+    }
+
+    private void validateProjectAccess(Long projectId, Long memberId) {
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
+            throw new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN);
+        }
     }
 }
