@@ -46,20 +46,19 @@ public class MeetingService {
 
         // 안건 추가
         if (request.agendas() != null) {
-            List<String> agendaTitles = request.agendas();
-            for (int i = 0; i < agendaTitles.size(); i++) {
+            request.agendas().forEach(agendaReq -> {
                 meeting.getAgendas().add(MeetingAgenda.builder()
                         .meeting(meeting)
-                        .title(agendaTitles.get(i))
-                        .content("")
-                        .sortOrder(i)
+                        .title(agendaReq.title())
+                        .content(agendaReq.content())
+                        .sortOrder(agendaReq.sortOrder())
                         .build());
-            }
+            });
         }
 
         // 참석자 추가
-        if (request.attendeeIds() != null) {
-            request.attendeeIds().forEach(memberId -> {
+        if (request.attendeeMemberIds() != null) {
+            request.attendeeMemberIds().forEach(memberId -> {
                 ProjectMember member = projectMemberRepository.findById(memberId)
                         .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
                 meeting.addAttendee(member);
@@ -109,6 +108,7 @@ public class MeetingService {
 
         // 참석자 업데이트
         meeting.getAttendees().clear();
+        meetingRepository.flush();
         if (request.attendeeIds() != null) {
             request.attendeeIds().forEach(memberId -> {
                 ProjectMember member = projectMemberRepository.findById(memberId)
@@ -157,5 +157,14 @@ public class MeetingService {
                         )).toList()
                 )).toList()
         );
+    }
+
+    // 5. 회의록 삭제
+    @Transactional
+    public void deleteMeeting(Long meetingId) {
+        Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+
+        meeting.delete();
     }
 }
