@@ -275,12 +275,33 @@
         ydoc = new Y.Doc();
         ytext = ydoc.getText('content');
 
-        // Editor <-> Yjs 바인딩
+        // Editor <-> Yjs 바인딩 (커서 튀는 문제 해결 버전)
         ytext.observe(() => {
             if (els.editor.value !== ytext.toString()) {
-                const pos = els.editor.scrollTop;
+                // 1. 현재 내 커서 위치 저장
+                const savedStart = els.editor.selectionStart;
+                const savedEnd = els.editor.selectionEnd;
+                
+                // 2. 변경 전 길이 저장
+                const oldLength = els.editor.value.length;
+
+                // 3. 내용 업데이트 (이때 커서가 날아감)
                 els.editor.value = ytext.toString();
-                els.editor.scrollTop = pos;
+                
+                // 4. 변경 후 길이 차이 계산
+                const newLength = els.editor.value.length;
+                const delta = newLength - oldLength;
+
+                // 5. 커서 위치 복구 (단순 보정)
+                // 내용이 늘어났으면(누가 글을 썼으면) 내 커서도 뒤로 밀어줌
+                if (delta > 0) {
+                     els.editor.selectionStart = savedStart + delta;
+                     els.editor.selectionEnd = savedEnd + delta;
+                } else {
+                     // 누가 글을 지웠으면 그냥 원래 위치 유지 (완벽하진 않지만 테스트용으로 충분)
+                     els.editor.selectionStart = savedStart;
+                     els.editor.selectionEnd = savedEnd;
+                }
             }
         });
 
