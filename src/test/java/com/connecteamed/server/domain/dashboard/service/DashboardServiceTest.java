@@ -21,6 +21,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -88,7 +91,9 @@ public class DashboardServiceTest {
     void getRecentNotifications_Success() {
         Notification notification = Notification.builder()
                 .id(1L).content("새로운 메시지").project(testProject).isRead(false).build();
-        given(notificationRepository.findAllByReceiverLoginIdOrderByCreatedAtDesc(userId)).willReturn(List.of(notification));
+
+        Page<Notification> notificationPage = new PageImpl<>(List.of(notification));
+        given(notificationRepository.findAllByReceiverLoginIdOrderByCreatedAtDesc(anyString(), any(Pageable.class))).willReturn(notificationPage);
 
         NotificationListRes result = dashboardService.getRecentNotifications(userId);
 

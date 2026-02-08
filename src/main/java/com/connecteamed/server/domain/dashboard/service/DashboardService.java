@@ -15,6 +15,9 @@ import com.connecteamed.server.domain.task.entity.Task;
 import com.connecteamed.server.domain.task.enums.TaskStatus;
 import com.connecteamed.server.domain.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +71,8 @@ public class DashboardService {
     }
 
     public NotificationListRes getRecentNotifications(String userId) {
-        List<Notification> notifications = notificationRepository.findAllByReceiverLoginIdOrderByCreatedAtDesc(userId);
+        Pageable pageable = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Notification> notifications = notificationRepository.findAllByReceiverLoginIdOrderByCreatedAtDesc(userId, pageable).getContent();
         List<NotificationListRes.NotificationRes> resList = notifications.stream()
                 .map(n -> new NotificationListRes.NotificationRes(
                         n.getId(),
