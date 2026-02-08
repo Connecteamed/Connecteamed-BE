@@ -1,7 +1,11 @@
 package com.connecteamed.server.global.util;
 
+import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
+import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.auth.exception.AuthException;
 import com.connecteamed.server.global.auth.exception.code.AuthErrorCode;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -11,9 +15,11 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class SecurityUtil implements ApplicationContextAware {
 
     private static ApplicationContext applicationContext;
+    private final MemberRepository memberRepository;
 
     @Override
     public void setApplicationContext(ApplicationContext context) {
@@ -53,5 +59,12 @@ public class SecurityUtil implements ApplicationContextAware {
 
         // 3. 둘 다 해당하지 예외 발생
         throw new AuthException(AuthErrorCode.EMPTY_AUTHENTICATION);
+    }
+
+    public Long getCurrentMemberId() {
+        String loginId = getCurrentLoginId();
+        return memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.UNAUTHORIZED, "인증된 사용자를 찾을 수 없습니다."))
+                .getId();
     }
 }

@@ -47,4 +47,15 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("endOfDay") Instant endOfDay
     );
 
+    @Query("SELECT t FROM Task t " +
+            "JOIN FETCH t.project " +
+            "WHERE t.dueDate >= :start AND t.dueDate < :end " +
+            "AND t.status != :status " +
+            "AND t.deletedAt IS NULL")
+    List<Task> findAllByDueDateBetweenAndStatusNot(
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("status") TaskStatus status
+    );
+
 }

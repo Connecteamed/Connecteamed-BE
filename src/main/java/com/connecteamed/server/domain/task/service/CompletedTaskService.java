@@ -1,6 +1,12 @@
 package com.connecteamed.server.domain.task.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
+import com.connecteamed.server.domain.notification.service.NotificationCommandService;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.domain.task.dto.CompletedTaskDetailRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskListRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskUpdateReq;
@@ -17,7 +23,6 @@ import com.connecteamed.server.global.apiPayload.code.GeneralErrorCode;
 import com.connecteamed.server.global.apiPayload.exception.GeneralException;
 import com.connecteamed.server.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +40,9 @@ public class CompletedTaskService {
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final TaskNoteRepository taskNoteRepository;
     private final MemberRepository  memberRepository;
+    private final NotificationCommandService  notificationCommandService;
+    private final ContributionService contributionService;
+    private final NotificationHelper notificationHelper;
 
     // 완료한 업무 목록 조회
     public CompletedTaskListRes getCompletedTasks(Long projectId) {
@@ -81,7 +89,26 @@ public class CompletedTaskService {
     public void updateCompletedTaskStatus(Long taskId, TaskStatus taskStatus) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
+
+        Long currentMemberId = getCurrentUserId();
+
+        boolean isAssignee = taskAssigneeRepository.findAllByTaskId(taskId).stream()
+                .anyMatch(a -> a.getProjectMember().getMember().getId().equals(currentMemberId));
+
+        if (!isAssignee) {
+            throw new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 상태를 변경할 수 없습니다.");
+        }
+
+        TaskStatus oldStatus = task.getStatus();
         task.updateStatus(taskStatus);
+
+        contributionService.recordContribution(currentMemberId,
+                new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
+
+        // 완료한 업무 상태 변경 시 알림 발송
+        if (oldStatus == TaskStatus.DONE && taskStatus == TaskStatus.IN_PROGRESS) {
+            notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
+        }
     }
 
     // 완료한 업무 상세 조회
@@ -121,8 +148,18 @@ public class CompletedTaskService {
                 .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
                 .findFirst()
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
+        task.updateInfo(req.name(), req.content());
 
-        task.updateInfo(req.name(), req.content(), req.noteContent());
+        TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
+                .orElseGet(() -> createNewNote(task, currentMemberId));
+        note.updateContent(req.noteContent());
+
+        contributionService.recordContribution(currentMemberId,
+                new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
+
+        // 완료한 업무 정보 수정 시 알림 발송
+        notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
+
     }
 
     // 완료한 업무 삭제

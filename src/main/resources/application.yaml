@@ -19,12 +19,16 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
         highlight_sql: true
     open-in-view: false
+  
+  output:
+    ansi:
+      enabled: ALWAYS
 
   security:
     oauth2:
@@ -86,3 +90,6 @@ app:
   test:
     login-id: ${TEST_LOGIN_ID:test@example.com}
     user-name: ${TEST_USER_NAME:테스트사용자}
+
+logging:
+  exception-conversion-word: "%wEx{0}"

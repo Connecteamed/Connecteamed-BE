@@ -16,12 +16,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.connecteamed.server.domain.contribution.service.ContributionService;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
+import com.connecteamed.server.domain.project.repository.ProjectRequiredRoleRepository;
+import com.connecteamed.server.global.util.SecurityUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -43,6 +48,12 @@ class ProjectMemberServiceImplTest {
 
     @Mock ProjectMemberRepository projectMemberRepository;
     @Mock ProjectRoleRepository projectRoleRepository;
+    @Mock
+    ProjectRequiredRoleRepository projectRequiredRoleRepository;
+    @Mock
+    ContributionService contributionService;
+    @Mock
+    MemberRepository memberRepository;
 
     @InjectMocks ProjectMemberServiceImpl projectMemberService;
 
@@ -130,23 +141,30 @@ class ProjectMemberServiceImplTest {
     @Test
     @DisplayName("중복/널 요소 제거 후 role 교체: 요청 [2,3,3,null] => 최종 [2,3]")
     void updateMemberRoles_replaceRoles_dedupeAndReplace() {
-        ProjectMemberRoleUpdateReq req = new ProjectMemberRoleUpdateReq(Arrays.asList(2L, 3L, 3L, null));
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = Mockito.mockStatic(SecurityUtil.class)) {
+            String loginId = "test@example.com";
+            mockedSecurityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn(loginId);
 
-        stubFindAllByIdReturn(List.of(
-                mockRole(2L, "role2"),
-                mockRole(3L, "role3")
-        ));
+            when(memberRepository.findByLoginId(loginId)).thenReturn(Optional.of(member));
 
-        ProjectMemberRes res = projectMemberService.updateMemberRoles(1L, 10L, req);
+            ProjectMemberRoleUpdateReq req = new ProjectMemberRoleUpdateReq(Arrays.asList(2L, 3L, 3L, null));
 
-        Set<Long> finalIds = new HashSet<>();
-        for (ProjectMemberRole pr : roleList) {
-            finalIds.add(pr.getRole().getId());
+            stubFindAllByIdReturn(List.of(
+                    mockRole(2L, "role2"),
+                    mockRole(3L, "role3")
+            ));
+
+            ProjectMemberRes res = projectMemberService.updateMemberRoles(1L, 10L, req);
+
+            Set<Long> finalIds = new HashSet<>();
+            for (ProjectMemberRole pr : roleList) {
+                finalIds.add(pr.getRole().getId());
+            }
+
+            assertEquals(Set.of(2L, 3L), finalIds);
+            assertNotNull(res);
+            assertEquals(2, res.roles().size());
         }
-
-        assertEquals(Set.of(2L, 3L), finalIds);
-        assertNotNull(res);
-        assertEquals(2, res.roles().size());
     }
 
     @Test

@@ -43,10 +43,11 @@ public class GeminiProvider {
 
             // 2. 템플릿의 %s 자리에 데이터 매핑
             String prompt = String.format(template,
-                    projectName, projectGoal, retrospectiveTitle, totalResult, role, myTaskList, otherTasks,
-                    retrospectiveTitle, otherTasks, role, myTaskList, myTaskList, totalResult
+                    wrap(projectName), wrap(projectGoal), wrap(retrospectiveTitle), wrap(totalResult),
+                    wrap(role), wrap(myTaskList), wrap(otherTasks),
+                    wrap(retrospectiveTitle), wrap(otherTasks), wrap(role),
+                    wrap(myTaskList), wrap(myTaskList), wrap(totalResult)
             );
-
             // 3. API 요청 생성
             Map<String, Object> requestBody = Map.of(
                     "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt))))
@@ -62,5 +63,19 @@ public class GeminiProvider {
         } catch (Exception e) {
             return "프롬프트 파일을 읽거나 AI 분석 중 오류가 발생했습니다: " + e.getMessage();
         }
+    }
+
+    /**
+     * 프롬프트 인젝션 방어 헬퍼 메서드
+     */
+    private String wrap(String input) {
+        if (input == null || input.isBlank()) return "내용 없음";
+
+        // 간단한 필터링
+        String sanitized = input.replaceAll("(?i)ignore previous instructions", "[FILTERED]")
+                .replaceAll("(?i)system prompt", "[FILTERED]");
+
+        // 따옴표 이스케이프 및 구분자로 감싸기
+        return "\"\"\"\n" + sanitized + "\n\"\"\"";
     }
 }

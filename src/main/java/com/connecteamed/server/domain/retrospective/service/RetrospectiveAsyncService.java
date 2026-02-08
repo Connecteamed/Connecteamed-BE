@@ -12,7 +12,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RetrospectiveAsyncService {
     private final GeminiProvider geminiProvider;
-    private final AiRetrospectiveRepository aiRetrospectiveRepository;
+    private final RetrospectiveUpdateService retrospectiveUpdateService;
 
     @Async("AsyncExecutor")
     @Transactional
@@ -31,13 +31,6 @@ public class RetrospectiveAsyncService {
                 projectName, projectGoal, retrospectiveTitle, totalResult, role, myTaskList, otherTasks
         );
 
-        updateRetrospectiveResult(retrospectiveId, analyzedResult);
-        }
-
-    @Transactional
-    public void updateRetrospectiveResult(Long retrospectiveId, String analyzedResult) {
-        aiRetrospectiveRepository.findById(retrospectiveId).ifPresent(retrospective -> {
-            retrospective.update(retrospective.getTitle(), analyzedResult);
-        });
+        retrospectiveUpdateService.updateRetrospectiveResult(retrospectiveId, analyzedResult);
     }
 }
