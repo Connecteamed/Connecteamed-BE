@@ -195,6 +195,8 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
+        validateProjectAccess(meeting.getProject().getId());
+
         meeting.delete();
     }
 

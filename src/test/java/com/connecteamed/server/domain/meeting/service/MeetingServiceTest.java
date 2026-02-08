@@ -144,7 +144,7 @@ class MeetingServiceTest {
         Project mockProject = mock(Project.class);
         ProjectMember mockProjectMember = mock(ProjectMember.class);
         Member mockMember = mock(Member.class);
-        
+
         lenient().when(mockProject.getId()).thenReturn(projectId);
         lenient().when(mockProjectMember.getId()).thenReturn(1L);
         lenient().when(mockProjectMember.getMember()).thenReturn(mockMember);
@@ -195,9 +195,20 @@ class MeetingServiceTest {
     void deleteMeeting_success() {
         // given
         Long meetingId = 100L;
-        Meeting existingMeeting = Meeting.builder().title("삭제할 회의").build();
+        Long userId = 10L;
+        Long projectId = 1L;
+
+        Project mockProject = mock(Project.class);
+        given(mockProject.getId()).willReturn(projectId);
+
+        Meeting existingMeeting = Meeting.builder()
+                .title("삭제할 회의")
+                .project(mockProject)
+                .build();
         ReflectionTestUtils.setField(existingMeeting, "id", meetingId);
 
+        given(securityUtil.getCurrentMemberId()).willReturn(userId);
+        given(projectMemberRepository.existsByProjectIdAndMemberId(projectId, userId)).willReturn(true);
         given(meetingRepository.findByIdAndDeletedAtIsNull(meetingId)).willReturn(Optional.of(existingMeeting));
 
         // when
