@@ -151,18 +151,23 @@ public class MeetingService {
                 meeting.getId(),
                 meeting.getProject().getId(),
                 meeting.getTitle(),
-                meeting.getMeetingDate(),
-                meeting.getCreatedAt(),
-                meeting.getUpdatedAt(),
+                meeting.getMeetingDate().toString().replace("-", "."),
                 meeting.getAgendas().stream().map(a -> new MeetingDetailRes.AgendaInfo(
-                        a.getId(), a.getTitle(), a.getContent(), a.getSortOrder(),
-                        a.getCreatedAt(), a.getUpdatedAt()
+                        a.getId(), a.getTitle(), a.getContent()
                 )).toList(),
-                meeting.getAttendees().stream().map(at -> new MeetingDetailRes.AttendeeInfo(
-                        at.getId(),
-                        at.getAttendee().getId(),
-                        at.getAttendee().getMember().getName()
-                )).toList()
+                meeting.getAttendees().stream().map(at -> {
+                    ProjectMember pm = at.getAttendee();
+                    String roleName = pm.getRoles().stream()
+                            .findFirst()
+                            .map(pmr -> pmr.getRole().getRoleName())
+                            .orElse("");
+
+                    return new MeetingDetailRes.AttendeeInfo(
+                            pm.getMember().getId(),
+                            pm.getMember().getName(),
+                            roleName
+                    );
+                }).toList()
         );
     }
     // 4. 회의록 목록 조회

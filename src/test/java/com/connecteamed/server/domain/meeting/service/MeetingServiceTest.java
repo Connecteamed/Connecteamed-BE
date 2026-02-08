@@ -144,11 +144,13 @@ class MeetingServiceTest {
         Project mockProject = mock(Project.class);
         ProjectMember mockProjectMember = mock(ProjectMember.class);
         Member mockMember = mock(Member.class);
-
-        given(mockProject.getId()).willReturn(1L);
-        given(mockProjectMember.getId()).willReturn(1L);
-        given(mockProjectMember.getMember()).willReturn(mockMember);
-        given(mockMember.getName()).willReturn("user");
+        
+        lenient().when(mockProject.getId()).thenReturn(projectId);
+        lenient().when(mockProjectMember.getId()).thenReturn(1L);
+        lenient().when(mockProjectMember.getMember()).thenReturn(mockMember);
+        lenient().when(mockMember.getId()).thenReturn(1L);
+        lenient().when(mockMember.getName()).thenReturn("테스터");
+        lenient().when(mockProjectMember.getRoles()).thenReturn(List.of()); // roles 리스트 비어있음 설정
 
         Meeting existingMeeting = Meeting.builder()
                 .title("기존")
