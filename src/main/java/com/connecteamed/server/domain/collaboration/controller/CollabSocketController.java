@@ -116,6 +116,11 @@ public class CollabSocketController extends TextWebSocketHandler {
         //     collabService.savePlainTextSnapshot(docId, msg.getPayload());
         // }
 
+        // ★ [추가] 커서 위치(Awareness) 정보 중계
+        if ("AWARENESS".equals(msg.getType())) {
+            redisTemplate.convertAndSend("doc-channel", msg);
+        }
+
         // ★ [수정됨] 스냅샷 저장 로직 (Text + Yjs압축 둘 다 Redis에 임시 저장)
         if ("SAVE_SNAPSHOT".equals(msg.getType())) {
             // 1. 사람이 읽는 텍스트 (Plain Text) -> doc:preview:{id}
