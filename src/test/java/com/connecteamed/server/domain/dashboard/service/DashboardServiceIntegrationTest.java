@@ -146,19 +146,24 @@ public class DashboardServiceIntegrationTest {
     @DisplayName("통합 테스트 3: 날짜별 일정 조회 (Meeting/Task JOIN FETCH 쿼리 검증)")
     void getDailySchedules_Integration() {
         // Given: 오늘 날짜의 회의 저장
-        Instant today = Instant.now();
+        Instant testTime = Instant.now().plus(2, ChronoUnit.HOURS);
         Meeting meeting = Meeting.builder()
                 .project(testProject)
                 .title("중요 회의")
-                .meetingDate(today.plus(1, ChronoUnit.HOURS))
+                .meetingDate(testTime)
                 .build();
+
         meeting.addAttendee(testProjectMember);
         meetingRepository.save(meeting);
 
+        em.flush();
+        em.clear();
+
         // When: 오늘 일정 조회
-        DailyScheduleListRes result = dashboardService.getDailySchedules(testMember.getLoginId(), today);
+        DailyScheduleListRes result = dashboardService.getDailySchedules(testMember.getLoginId(), testTime);
 
         // Then: Meeting 연관관계(Attendees)를 통해 조회가 잘 되는지 검증
+        assertThat(result.schedules()).isNotEmpty();
         assertThat(result.schedules()).anyMatch(s -> s.title().contains("중요 회의"));
     }
 }
