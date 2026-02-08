@@ -142,7 +142,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         ProjectMember projectMember = getProjectMember(projectId, loginId);
 
-        Document d = Document.createText(projectRef, projectMember, req.title(), req.content());
+        Document d = Document.createText(projectRef, projectMember, req.title());
         documentRepository.save(d);
 
         contributionService.recordContribution(projectMember.getMember().getId(),

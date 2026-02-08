@@ -5,6 +5,11 @@ spring:
   profiles:
     active: notLocal
 
+  data:
+      redis:
+        host: localhost
+        port: 6379
+
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/connecteamed_db}
     username: ${SPRING_DATASOURCE_USERNAME:connecteamed}
@@ -64,7 +69,7 @@ springdoc:
 
 server:
   port: 8080
-
+  forward-headers-strategy: framework
 app:
 
   oauth2:

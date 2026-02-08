@@ -159,6 +159,7 @@ public class CompletedTaskService {
 
         // 완료한 업무 정보 수정 시 알림 발송
         notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
+
     }
 
     // 완료한 업무 삭제

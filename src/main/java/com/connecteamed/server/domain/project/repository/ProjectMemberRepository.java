@@ -5,6 +5,7 @@ import com.connecteamed.server.domain.project.entity.ProjectMember;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,4 +34,11 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     Optional<ProjectMember> findByProject_IdAndMember_Id(Long projectId, Long memberId);
 
     boolean existsByProjectIdAndMemberId(Long projectId, Long memberId);
+
+    @Query("SELECT COUNT(pm) > 0 " +
+           "FROM ProjectMember pm " +
+           "WHERE pm.project.id = :projectId " +
+           "AND pm.member.loginId = :loginId")
+    boolean existsByProjectIdAndMemberLoginId(@Param("projectId") Long projectId, 
+                                              @Param("loginId") String loginId);
 }

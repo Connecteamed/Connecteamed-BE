@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Spring+Redis+Yjs Realtime Editor</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f9fafb; }
+        h1 { color: #111827; }
+        .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .container { display: flex; gap: 20px; }
+        .box { flex: 1; background: white; border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        h3 { margin-top: 0; color: #374151; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; }
+        textarea { width: 100%; height: 400px; padding: 12px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: none; font-family: monospace;}
+        textarea:focus { outline: none; border-color: #4f46e5; ring: 2px solid #4f46e5; }
+        #log { background: #1f2937; color: #10b981; height: 400px; overflow-y: scroll; font-size: 12px; padding: 15px; border-radius: 6px; font-family: monospace; }
+        .status { font-weight: bold; color: #ef4444; margin-left: auto; }
+        .status.connected { color: #10b981; }
+        input { padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; }
+        button { padding: 8px 16px; background-color: #4f46e5; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+        button:hover { background-color: #4338ca; }
+        .log-item { margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 2px; }
+        .log-in { color: #60a5fa; } /* Blue for RX */
+        .log-out { color: #f472b6; } /* Pink for TX */
+    </style>
+</head>
+<body>
+
+<h1>🚀 Connecteamed 실시간 문서 편집</h1>
+
+<div class="controls">
+    <label>Doc ID:</label>
+    <input type="text" id="docIdInput" value="1">
+    <button id="connectBtn">연결 (Connect)</button>
+    <span id="status" class="status">Disconnected</span>
+</div>
+
+<div class="container">
+    <div class="box">
+        <h3>📝 에디터 (Textarea)</h3>
+        <textarea id="editor" placeholder="연결되면 DB 내용을 불러옵니다..."></textarea>
+    </div>
+    <div class="box">
+        <h3>📊 실시간 로그</h3>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script type="module">
+    import * as Y from 'https://esm.sh/yjs@13.6.14';
+
+    // === 전역 변수 ===
+    let ws = null;
+    let ydoc = null;
+    let ytext = null;
+    let myDocId = null;
+    
+    // 임시 사용자 ID 생성 (실제로는 로그인 토큰에서 파싱한 ID 사용)
+    const myUserId = "user-" + Math.floor(Math.random() * 10000);
+
+    const logDiv = document.getElementById('log');
+    const statusSpan = document.getElementById('status');
+    const editor = document.getElementById('editor');
+    const connectBtn = document.getElementById('connectBtn');
+
+    // === 유틸리티: Base64 <-> Uint8Array ===
+    function toBase64(uint8Array) { return btoa(String.fromCharCode(...uint8Array)); }
+    function fromBase64(base64String) {
+        const binaryString = atob(base64String);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+        return bytes;
+    }
+
+    // === 로그 출력 ===
+    function log(msg, type = 'info') {
+        const div = document.createElement('div');
+        div.className = 'log-item';
+        const time = new Date().toLocaleTimeString();
+        if (type === 'in') {
+            div.innerHTML = `<span style="color:#9ca3af">[${time}]</span> <span class="log-in">⬇️ ${msg}</span>`;
+        } else if (type === 'out') {
+            div.innerHTML = `<span style="color:#9ca3af">[${time}]</span> <span class="log-out">⬆️ ${msg}</span>`;
+        } else {
+            div.innerHTML = `<span style="color:#9ca3af">[${time}]</span> <span>ℹ️ ${msg}</span>`;
+        }
+        logDiv.prepend(div);
+    }
+
+    // === 연결 로직 ===
+    connectBtn.onclick = () => {
+        if (ws) { ws.close(); ws = null; }
+
+        const docId = document.getElementById('docIdInput').value;
+        myDocId = docId;
+
+        // 1. Yjs 문서 초기화
+        ydoc = new Y.Doc();
+        ytext = ydoc.getText('content'); 
+
+        // 2. Yjs -> 화면 바인딩 (다른 사람의 변경사항을 내 화면에 표시)
+        ytext.observe(event => {
+            if (editor.value !== ytext.toString()) {
+                const scrollPos = editor.scrollTop;
+                // 커서 위치 계산 로직이 없으므로 단순 값 교체 (실무에선 TipTap/Quill 사용 권장)
+                editor.value = ytext.toString(); 
+                editor.scrollTop = scrollPos;
+            }
+        });
+
+        // 3. 화면 -> Yjs 반영 (내가 타이핑한 것)
+        editor.oninput = () => {
+            ydoc.transact(() => {
+                ytext.delete(0, ytext.length);
+                ytext.insert(0, editor.value);
+            });
+
+            // ★ [추가] 타이핑 할 때마다(혹은 Debounce 적용해서) "완성본"도 서버에 전송
+            // 실무 팁: 매번 보내면 부하가 크니, 'lodash.debounce' 등으로 1~2초에 한 번만 보내게 하세요.
+            // 여기서는 MVP니까 그냥 바로 보냅니다.
+            // sendSnapshot(editor.value);
+        };
+
+        // ★ [신규 추가] 사용자가 "창을 닫거나 새로고침 할 때" 실행됨
+        window.addEventListener("beforeunload", (event) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                // 마지막 순간의 완성된 텍스트를 서버로 전송
+                const msg = {
+                    type: "SAVE_SNAPSHOT",
+                    docId: myDocId,
+                    payload: editor.value 
+                };
+                ws.send(JSON.stringify(msg));
+            }
+        });
+      
+        function sendSnapshot(text) {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                const msg = {
+                    type: "SAVE_SNAPSHOT",
+                    docId: myDocId,
+                    payload: text // 이번엔 Base64가 아니라 진짜 한글 텍스트!
+                };
+                ws.send(JSON.stringify(msg));
+            }
+        }
+
+        // 4. Yjs 업데이트 발생 시 -> 웹소켓 전송
+        ydoc.on('update', (update, origin) => {
+            if (origin !== 'ws' && ws && ws.readyState === WebSocket.OPEN) {
+                const base64Payload = toBase64(update);
+                const msg = {
+                    type: "UPDATE",
+                    docId: myDocId,
+                    payload: base64Payload
+                };
+                ws.send(JSON.stringify(msg));
+                // 너무 잦은 로그 방지 (디버깅용으로만 켜두기)
+                // log(`Send Update (${base64Payload.length} bytes)`, 'out');
+            }
+        });
+
+        // 5. 웹소켓 연결 시작
+        // (보안 설정 때문에 JWT 토큰을 쿼리 파라미터나 헤더로 넘겨야 할 수도 있음)
+        const wsUrl = `ws://localhost:8080/ws/docs/${docId}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            statusSpan.textContent = "Connected";
+            statusSpan.className = "status connected";
+            log("WebSocket Connected!");
+
+            // ★ [핵심] 연결 직후 JOIN 메시지 전송
+            // 이 메시지를 보내야 서버가 "DB 조회" 후 INITIAL_LOAD를 보내줍니다.
+            const joinMsg = { 
+                type: "JOIN", 
+                docId: myDocId,
+                userId: myUserId 
+            };
+            ws.send(JSON.stringify(joinMsg));
+            log("Sent JOIN request", 'out');
+        };
+
+        ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+
+                        // [CASE 1] DB에서 불러온 초기 데이터 처리
+                        if (msg.type === "INITIAL_LOAD") {
+                            log(`Loaded from DB. Parsing...`, 'in');
+                            
+                            let appliedAsHistory = false;
+
+                            // 1-1. DB 데이터가 "업데이트 히스토리 목록(JSON Array)"인지 확인
+                            try {
+                                // 서버가 saveRedisToDb에서 저장한게 JSON Array라면 파싱됨
+                                const parsed = JSON.parse(msg.payload);
+                                
+                                if (Array.isArray(parsed)) {
+                                    console.log("History found in DB. Replaying updates...");
+                                    // 히스토리 배열이라면 순서대로 재생(Apply)
+                                    ydoc.transact(() => {
+                                        parsed.forEach(base64Update => {
+                                            const update = fromBase64(base64Update);
+                                            Y.applyUpdate(ydoc, update, 'ws');
+                                        });
+                                    });
+                                    appliedAsHistory = true;
+                                }
+                            } catch (e) {
+                                // JSON 파싱 에러나면 그냥 일반 텍스트로 간주 (무시)
+                            }
+
+                            // 1-2. 히스토리가 아니라면(처음 생성된 문서 or 일반 텍스트), 그냥 텍스트로 삽입
+                            if (!appliedAsHistory) {
+                                console.log("Plain text found in DB. Inserting...");
+                                ydoc.transact(() => {
+                                    ytext.delete(0, ytext.length); 
+                                    ytext.insert(0, msg.payload);  
+                                }, 'ws'); 
+                            }
+                        } 
+                        // [CASE 2] 실시간 편집 데이터 (Yjs Binary)
+                        else if (msg.type === "UPDATE") {
+                            // log(`Received Live Update`, 'in'); 
+                            const update = fromBase64(msg.payload);
+                            Y.applyUpdate(ydoc, update, 'ws');
+                        }
+
+                    } catch (e) {
+                        console.error(e);
+                        log("Error parsing message", 'error');
+                    }
+                };
+
+        ws.onclose = () => {
+            statusSpan.textContent = "Disconnected";
+            statusSpan.className = "status";
+            log("Connection Closed. (Last content saved on server if last user)");
+        };
+
+    };
+</script>
+</body>
+</html>
