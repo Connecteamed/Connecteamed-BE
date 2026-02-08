@@ -128,7 +128,7 @@
     let ydoc = null;
     let ytext = null;
     let currentDocId = null;
-    const API_BASE = 'http://localhost:8080/api';
+    const API_BASE = 'https://api.connecteamed.shop/api';
 
     // === DOM 요소 ===
     const els = {
@@ -303,7 +303,7 @@
 
         // 소켓 연결
         log(`Connecting to Doc ${docId}...`, 'sys');
-        ws = new WebSocket(`ws://localhost:8080/ws/docs/${docId}?token=${token}`);
+        ws = new WebSocket(`wss://api.connecteamed.shop/ws/docs/${docId}?token=${token}`);
 
         ws.onopen = () => {
             log("🔌 WebSocket Connected", 'sys');
