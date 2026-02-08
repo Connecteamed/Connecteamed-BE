@@ -1,53 +1,45 @@
 services:
-  db:
-    image: postgres:16
-    container_name: connecteamed-be-db
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - connecteamed-be-db:/var/lib/postgresql/data
-    networks:
-      - connecteamed-network
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: connecteamed-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
-    networks:
-      - connecteamed-network
-    depends_on:
-      - db
-
   app:
     build: .
     container_name: connecteamed-be-app
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - redis  # Redis가 먼저 켜진 후 앱이 켜지도록 설정
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
-      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      # --- 기존 DB 설정 ---
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      - SPRING_DATASOURCE_USERNAME=${DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      
+      # --- Redis 연결 설정 (추가됨) ---
+      # Docker 내부 네트워크에서는 서비스 이름('redis')이 호스트 주소가 됩니다.
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # --- 기타 설정 ---
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - APP_S3_ACCESS_KEY=${APP_S3_ACCESS_KEY}
       - APP_S3_SECRET_KEY=${APP_S3_SECRET_KEY}
       - APP_S3_BUCKET=${APP_S3_BUCKET}
       - APP_S3_REGION=${APP_S3_REGION}
-    networks:
-      - connecteamed-network
-    depends_on:
-      - db
+      
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}
+      - KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
+      - FRONTEND_REDIRECT_URL=${FRONTEND_REDIRECT_URL}
+      
+  redis:
+    image: redis:alpine
+    container_name: connecteamed-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    env_file:
+      - .env
 
-networks:
-  connecteamed-network:
-    name: ${DOCKER_NETWORK:-connecteamed-network}
-    driver: bridge
-
-volumes:
-  connecteamed-be-db:

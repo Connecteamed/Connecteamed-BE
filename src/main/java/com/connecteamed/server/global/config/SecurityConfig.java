@@ -2,10 +2,7 @@ package com.connecteamed.server.global.config;
 
 import com.connecteamed.server.domain.token.repository.BlacklistedTokenRepository;
 import com.connecteamed.server.global.apiPayload.ApiResponse;
-import com.connecteamed.server.global.auth.JwtAuthenticationFilter;
-import com.connecteamed.server.global.auth.JwtLogoutHandler;
-import com.connecteamed.server.global.auth.JwtUtil;
-import com.connecteamed.server.global.auth.CustomUserDetailsService;
+import com.connecteamed.server.global.auth.*;
 import com.connecteamed.server.global.auth.exception.code.AuthErrorCode;
 import com.connecteamed.server.global.auth.exception.code.AuthSuccessCode;
 import com.connecteamed.server.global.util.FilterResponseUtils;
@@ -15,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,6 +21,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor // JwtUtil과 Service 주입을 위해 필요합니다.
@@ -32,6 +34,10 @@ public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
     private final CustomUserDetailsService customUserDetailsService;
+
+    //소셜 로그인용
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
 
     private final JwtLogoutHandler jwtLogoutHandler;
     private final BlacklistedTokenRepository blacklistedTokenRepository;
@@ -51,8 +57,9 @@ public class SecurityConfig {
         configureCommonSecurity(http);
         http
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
-                    "/", "/index.html", "/document.html",
+                    "/", "/index.html", "/document.html", "/collab.html",
                     "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error",
                     "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**"
                 ).permitAll()
@@ -70,14 +77,24 @@ public class SecurityConfig {
         configureCommonSecurity(http);
         http
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
-                    "/", "/index.html", "/document.html",
+                    "/", "/index.html", "*.html",
                     "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error",
-                    "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**"
+                    "/docs", "/docs/**", "/swagger-ui/**", "/v3/api-docs/**",
+                    "/ws/docs/**"
                 ).permitAll()
                 // 로그인/회원가입 같은 것만 예외로 오픈
-                .requestMatchers("/api/auth/login","/api/auth/refresh","/api/auth/signup","/api/members/check-id").permitAll()
+                .requestMatchers("/api/auth/login","/login/oauth2/code/**","/api/auth/refresh","/api/auth/signup","/api/members/check-id").permitAll()
                 .anyRequest().authenticated()
+                )
+                // Oauth2 관련 설정
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .baseUri("/api/auth/login")
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService)) //
+                        .successHandler(oAuth2AuthenticationSuccessHandler) //
                 )
                 // JWT 필터 추가
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil, customUserDetailsService, blacklistedTokenRepository,filterResponseUtils),
@@ -99,11 +116,33 @@ public class SecurityConfig {
         return http.build();
     }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "https://api.connecteamed.shop",
+                "https://connecteamed.shop",
+                "https://connecteamed.vercel.app"
+
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Refresh-Token", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setAllowCredentials(true); 
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
     //공통 설정
     private void configureCommonSecurity(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session

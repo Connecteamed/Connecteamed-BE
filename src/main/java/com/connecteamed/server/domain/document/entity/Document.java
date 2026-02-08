@@ -43,8 +43,12 @@ public class Document extends BaseEntity {
     @Column(name = "file_url", columnDefinition = "TEXT")
     private String fileUrl;
 
-    @Column(name = "content", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "content", columnDefinition = "LONGTEXT")
     private String content;
+
+    @Column(name = "plain_text", columnDefinition = "TEXT")
+    private String plainText;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -56,14 +60,15 @@ public class Document extends BaseEntity {
         }
     }
 
-    public static Document createText(Project project, ProjectMember projectMember, String title, String content) {
+    public static Document createText(Project project, ProjectMember projectMember, String title) {
         return Document.builder()
                 .project(project)
                 .projectMember(projectMember)
                 .title(title)
                 .fileType(DocumentFileType.TEXT)
                 .fileUrl(null)
-                .content(content)
+                .content("[]")
+                .plainText("")
                 .deletedAt(null)
                 .build();
     }
@@ -83,6 +88,12 @@ public class Document extends BaseEntity {
                 .build();
     }
 
+    public void updateTitle(String title) {
+        if (title != null && !title.isBlank()) {
+            this.title = title;
+        }
+    }
+
     public void updateText(String title, String content) {
         if (this.fileType != DocumentFileType.TEXT) {
             throw new IllegalArgumentException("TEXT 문서만 수정할 수 있습니다.");
@@ -96,6 +107,14 @@ public class Document extends BaseEntity {
         if (content != null) {
             this.content = content;
         }
+    }
+
+    public void updateContent(String content){
+        this.content = content;
+    }
+
+    public void updatePlainText(String plainText) {
+        this.plainText = plainText;
     }
 
     public void softDelete() {

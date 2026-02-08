@@ -185,8 +185,8 @@ class ProjectServiceTest {
     }
 
     @Test
-    @DisplayName("프로젝트 생성 실패 - 역할 없음")
-    void createProject_Fail_RoleNotFound() {
+    @DisplayName("프로젝트 생성 성공 - 역할이 없으면 자동 생성 후 필요 역할 등록")
+    void createProject_Success_AutoCreateRole() {
         // given
         ProjectCreateReq createReq = ProjectCreateReq.builder()
                 .name("UMC 7기")
@@ -197,13 +197,23 @@ class ProjectServiceTest {
         when(projectRepository.findByName("UMC 7기")).thenReturn(Optional.empty());
         when(memberRepository.findByLoginId("test@example.com")).thenReturn(Optional.of(testMember));
         when(projectRepository.save(any(Project.class))).thenReturn(testProject);
+
+        // 역할이 없다고 가정
         when(projectRoleRepository.findByRoleName("INVALID_ROLE")).thenReturn(Optional.empty());
 
-        // when & then
-        GeneralException exception = assertThrows(GeneralException.class, () ->
-                projectService.createProject(createReq, "test@example.com")
-        );
-        assertEquals(ProjectErrorCode.ROLE_NOT_FOUND, exception.getCode());
+        // 자동 생성되는 역할 save 결과 준비
+        ProjectRole createdRole = ProjectRole.builder().id(99L).roleName("INVALID_ROLE").build();
+        when(projectRoleRepository.save(any(ProjectRole.class))).thenReturn(createdRole);
+
+        // when
+        ProjectRes.CreateResponse response = projectService.createProject(createReq, "test@example.com");
+
+        // then
+        assertNotNull(response);
+        assertEquals(1L, response.getProjectId());
+
+        verify(projectRoleRepository, times(1)).save(any(ProjectRole.class));              // 역할 자동 생성
+        verify(projectRequiredRoleRepository, times(1)).save(any(ProjectRequiredRole.class)); // 필요역할 등록
     }
 
     @Test
