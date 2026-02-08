@@ -1,354 +1,475 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>Connecteamed: Quill Editor with Cursors</title>
-    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f3f4f6; color: #1f2937; }
-        h1 { color: #111827; margin-bottom: 20px; font-size: 24px; }
-        
-        .grid-container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
-        .sidebar { display: flex; flex-direction: column; gap: 20px; }
-        .main-content { display: flex; flex-direction: column; gap: 20px; }
+  <meta charset="UTF-8">
+  <title>Connecteamed: Quill + Yjs + Cursors (Server-Matched Final)</title>
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f3f4f6; color: #1f2937; }
+    h1 { margin-bottom: 20px; font-size: 24px; }
+    .grid-container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
+    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+    .main-content { display: flex; flex-direction: column; gap: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-size: 16px; color: #4b5563; }
+    .input-group { margin-bottom: 12px; }
+    .input-group label { display: block; font-weight: 600; font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+    input[type="text"], input[type="password"], input[type="number"] { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+    button { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; color: white; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+    .btn-green { background-color: #10b981; }
+    .btn-blue { background-color: #4f46e5; }
+    .btn-red { background-color: #ef4444; }
+    .btn-gray { background-color: #6b7280; }
 
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .card h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-size: 16px; color: #4b5563; }
+    .doc-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
+    .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background 0.2s; }
+    .doc-item:hover { background-color: #f9fafb; }
 
-        .input-group { margin-bottom: 12px; }
-        .input-group label { display: block; font-weight: 600; font-size: 13px; color: #6b7280; margin-bottom: 4px; }
-        input[type="text"], input[type="password"], input[type="number"] { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-        
-        button { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; color: white; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        .btn-green { background-color: #10b981; }
-        .btn-blue { background-color: #4f46e5; }
-        .btn-red { background-color: #ef4444; }
-        .btn-gray { background-color: #6b7280; }
+    .editor-wrapper { height: 600px; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; }
+    #editor-container { flex: 1; border: none !important; font-size: 16px; }
+    .ql-toolbar { border-top: none !important; border-left: none !important; border-right: none !important; border-bottom: 1px solid #e5e7eb !important; background: #f9fafb; }
+    .ql-container { border: none !important; }
 
-        .doc-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
-        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background 0.2s; }
-        .doc-item:hover { background-color: #f9fafb; }
-        
-        /* Quill 에디터 스타일 */
-        .editor-wrapper { height: 600px; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; }
-        #editor-container { flex: 1; border: none !important; font-size: 16px; }
-        .ql-toolbar { border-top: none !important; border-left: none !important; border-right: none !important; border-bottom: 1px solid #e5e7eb !important; background: #f9fafb; }
-        .ql-container { border: none !important; }
+    /* quill-cursors 스타일 */
+    .ql-cursor { position: absolute; z-index: 100; }
+    .ql-cursor-flag { position: absolute; top: -15px; left: 0; white-space: nowrap; font-size: 12px; padding: 2px 4px; color: white; border-radius: 4px; pointer-events: none; font-weight: 700; }
+    .ql-cursor-caret { position: absolute; width: 2px; height: 100%; top: 0; left: 0; }
 
-        /* ★ 상대방 커서 스타일 (필수) ★ */
-        .ql-cursor { position: absolute; z-index: 100; }
-        .ql-cursor-flag { position: absolute; top: -15px; left: 0; white-space: nowrap; font-size: 12px; padding: 2px 4px; color: white; border-radius: 4px; pointer-events: none; font-weight: bold; }
-        .ql-cursor-caret { position: absolute; width: 2px; height: 100%; top: 0; left: 0; }
+    #log { background: #1f2937; color: #10b981; height: 150px; overflow-y: auto; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; margin-top: 10px; }
+    .log-item { border-bottom: 1px solid #374151; padding: 2px 0; }
 
-        #log { background: #1f2937; color: #10b981; height: 150px; overflow-y: auto; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; margin-top: 10px; }
-        .log-item { border-bottom: 1px solid #374151; padding: 2px 0; }
-        
-        .presence-bar { display: flex; gap: 8px; margin-bottom: 10px; min-height: 24px; align-items: center; }
-        .user-avatar { background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
-        .user-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; }
-        
-        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .status-connected { background: #d1fae5; color: #065f46; }
-        .status-disconnected { background: #fee2e2; color: #b91c1c; }
-    </style>
+    .presence-bar { display: flex; gap: 8px; margin-bottom: 10px; min-height: 24px; align-items: center; }
+    .user-avatar { background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+    .user-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; }
+
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .status-connected { background: #d1fae5; color: #065f46; }
+    .status-disconnected { background: #fee2e2; color: #b91c1c; }
+  </style>
 </head>
 <body>
 
-<h1>🚀 Connecteamed 협업 에디터 (Quill)</h1>
+<h1>🚀 Connecteamed 협업 (Quill + Yjs + Cursor)</h1>
 
 <div class="grid-container">
-    <div class="sidebar">
-        <div class="card">
-            <h3>🔐 1. 로그인</h3>
-            <div class="input-group"><label>ID</label><input type="text" id="loginId" value="string1"></div>
-            <div class="input-group"><label>PW</label><input type="password" id="loginPw" value="string1"></div>
-            <button id="loginBtn" class="btn-green">로그인</button>
-            <input type="hidden" id="accessToken">
-        </div>
-
-        <div class="card">
-            <h3>Bg 2. 프로젝트</h3>
-            <div class="input-group"><label>Project ID</label><input type="number" id="projectId" value="1"></div>
-            <button id="loadDocsBtn" class="btn-blue">문서 목록 불러오기</button>
-        </div>
-
-        <div class="card">
-            <h3>📄 3. 문서 목록</h3>
-            <div class="input-group"><input type="text" id="newDocTitle" placeholder="새 문서 제목..."></div>
-            <button id="createDocBtn" class="btn-gray" style="margin-bottom: 15px;">+ 새 문서 생성</button>
-            <div style="border-top: 1px solid #f3f4f6; margin-bottom: 10px;"></div>
-            <ul id="docList" class="doc-list"><li style="padding:10px; text-align:center;">목록 없음</li></ul>
-        </div>
+  <div class="sidebar">
+    <div class="card">
+      <h3>🔐 1. 로그인</h3>
+      <div class="input-group"><label>ID</label><input type="text" id="loginId" value="string1"></div>
+      <div class="input-group"><label>PW</label><input type="password" id="loginPw" value="string1"></div>
+      <button id="loginBtn" class="btn-green">로그인</button>
+      <input type="hidden" id="accessToken">
     </div>
 
-    <div class="main-content">
-        <div class="card editor-wrapper">
-            <div style="padding: 10px 15px; border-bottom: 1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; border:none;">📝 <span id="currentDocTitle" style="color:#4f46e5;">선택된 문서 없음</span></h3>
-                <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
-            </div>
-
-            <div class="presence-bar" id="presenceBar" style="padding: 10px 15px; background: #f9fafb;"></div>
-
-            <div id="editor-container"></div>
-            
-        </div>
-        
-        <div class="card" style="padding:10px;">
-            <button id="disconnectBtn" class="btn-red" style="display:none; margin-bottom:10px;">연결 종료 & 저장</button>
-            <div id="log"></div>
-        </div>
+    <div class="card">
+      <h3>2. 프로젝트</h3>
+      <div class="input-group"><label>Project ID</label><input type="number" id="projectId" value="1"></div>
+      <button id="loadDocsBtn" class="btn-blue">문서 목록 불러오기</button>
     </div>
+
+    <div class="card">
+      <h3>📄 3. 문서 목록</h3>
+      <div class="input-group"><input type="text" id="newDocTitle" placeholder="새 문서 제목..."></div>
+      <button id="createDocBtn" class="btn-gray" style="margin-bottom: 15px;">+ 새 문서 생성</button>
+      <div style="border-top: 1px solid #f3f4f6; margin-bottom: 10px;"></div>
+      <ul id="docList" class="doc-list"><li style="padding:10px; text-align:center;">목록 없음</li></ul>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="card editor-wrapper">
+      <div style="padding: 10px 15px; border-bottom: 1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0; border:none;">📝 <span id="currentDocTitle" style="color:#4f46e5;">선택된 문서 없음</span></h3>
+        <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+      </div>
+
+      <div class="presence-bar" id="presenceBar" style="padding: 10px 15px; background: #f9fafb;"></div>
+      <div id="editor-container"></div>
+    </div>
+
+    <div class="card" style="padding:10px;">
+      <button id="disconnectBtn" class="btn-red" style="display:none; margin-bottom:10px;">연결 종료 & 저장</button>
+      <div id="log"></div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
 <script type="module">
-    import * as Y from 'https://esm.sh/yjs@13.6.14';
-    import { QuillBinding } from 'https://esm.sh/y-quill@0.1.5';
-    import { Awareness } from 'https://esm.sh/y-protocols@1.0.6/awareness';
+  import * as Y from 'https://esm.sh/yjs@13.6.14?bundle';
+  import { QuillBinding } from 'https://esm.sh/y-quill@0.1.5?bundle';
+  import * as awarenessProtocol from 'https://esm.sh/y-protocols@1.0.6/awareness?bundle';
+  import QuillCursors from 'https://esm.sh/quill-cursors@4.0.2?bundle';
 
-    // === 전역 상태 ===
-    let ws = null;
-    let ydoc = null;
-    let awareness = null;
-    let quillBinding = null;
-    let currentDocId = null;
-    // const API_BASE = 'https://api.connecteamed.shop/api'; // 배포용
-    const API_BASE = 'http://localhost:8080/api'; // 테스트용
+  Quill.register('modules/cursors', QuillCursors);
 
-    // Quill 초기화
-    const quill = new Quill('#editor-container', {
-        theme: 'snow',
-        modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], [{ 'header': [1, 2, false] }], ['clean']] },
-        placeholder: '문서를 선택하여 연결하세요...'
+  let ws = null;
+  let ydoc = null;
+  let awareness = null;
+  let quillBinding = null;
+  let currentDocId = null;
+
+  let onAwarenessUpdate = null;
+  let onYDocUpdate = null;
+
+
+  const API_BASE = 'http://localhost:8080/api';
+
+  const quill = new Quill('#editor-container', {
+    theme: 'snow',
+    modules: {
+      toolbar: [['bold','italic','underline','strike'], [{ 'color': [] }, { 'background': [] }], [{ 'header': [1, 2, false] }], ['clean']],
+      cursors: true
+    },
+    placeholder: '문서를 선택하여 연결하세요...'
+  });
+  quill.enable(false);
+
+  quill.on('selection-change', (range) => {
+    if (!awareness) return;
+    if (!range) return;
+    awareness.setLocalStateField('cursor', { index: range.index, length: range.length });
+  });
+
+  window.quill = quill;
+  window.__debug = { get ws(){ return ws; }, get ydoc(){ return ydoc; }, get awareness(){ return awareness; } };
+
+  const els = {
+    loginId: document.getElementById('loginId'),
+    loginPw: document.getElementById('loginPw'),
+    loginBtn: document.getElementById('loginBtn'),
+    accessToken: document.getElementById('accessToken'),
+    projectId: document.getElementById('projectId'),
+    loadDocsBtn: document.getElementById('loadDocsBtn'),
+    docList: document.getElementById('docList'),
+    newDocTitle: document.getElementById('newDocTitle'),
+    createDocBtn: document.getElementById('createDocBtn'),
+    currentDocTitle: document.getElementById('currentDocTitle'),
+    connectionStatus: document.getElementById('connectionStatus'),
+    presenceBar: document.getElementById('presenceBar'),
+    disconnectBtn: document.getElementById('disconnectBtn'),
+    log: document.getElementById('log')
+  };
+
+  function log(msg, type='info') {
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    div.innerHTML = `<span style="color:${type==='sys'?'#fbbf24':(type==='in'?'#60a5fa':'#10b981')}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
+    els.log.prepend(div);
+  }
+
+  function toBase64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+
+  function fromBase64(str) {
+    const bin = atob(str);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function safeSend(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify(obj));
+  }
+
+  function setConnectedUI(connected) {
+    els.connectionStatus.textContent = connected ? 'Connected' : 'Disconnected';
+    els.connectionStatus.classList.toggle('status-connected', connected);
+    els.connectionStatus.classList.toggle('status-disconnected', !connected);
+    els.disconnectBtn.style.display = connected ? 'block' : 'none';
+    quill.enable(connected);
+    if (!connected) els.presenceBar.innerHTML = '';
+  }
+
+  function renderPresence(users) {
+    els.presenceBar.innerHTML = '';
+    (users || []).forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'user-avatar';
+      div.innerHTML = `<div class="user-dot"></div> ${u.userName ?? u.userId ?? 'unknown'}`;
+      els.presenceBar.appendChild(div);
     });
-    quill.enable(false); // 연결 전엔 입력 불가
+  }
 
-    // DOM 요소
-    const els = {
-        loginId: document.getElementById('loginId'),
-        loginPw: document.getElementById('loginPw'),
-        loginBtn: document.getElementById('loginBtn'),
-        accessToken: document.getElementById('accessToken'),
-        projectId: document.getElementById('projectId'),
-        loadDocsBtn: document.getElementById('loadDocsBtn'),
-        docList: document.getElementById('docList'),
-        newDocTitle: document.getElementById('newDocTitle'),
-        createDocBtn: document.getElementById('createDocBtn'),
-        currentDocTitle: document.getElementById('currentDocTitle'),
-        connectionStatus: document.getElementById('connectionStatus'),
-        presenceBar: document.getElementById('presenceBar'),
-        disconnectBtn: document.getElementById('disconnectBtn'),
-        log: document.getElementById('log')
-    };
+  function cleanupConnection(skipSnapshot=false) {
+    try {
+      if (!skipSnapshot && ws && ws.readyState === WebSocket.OPEN) {
+        sendSnapshot();
+      }
+    } catch (e) {}
 
-    function log(msg, type='info') {
-        const div = document.createElement('div');
-        div.className = 'log-item';
-        div.innerHTML = `<span style="color:${type==='sys'?'#fbbf24':(type==='in'?'#60a5fa':'#10b981')}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
-        els.log.prepend(div);
-    }
-    
-    function toBase64(u8) { return btoa(String.fromCharCode(...u8)); }
-    function fromBase64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+    try { if (ws) ws.close(); } catch (e) {}
+    ws = null;
 
-    // === 1. 로그인 ===
-    els.loginBtn.onclick = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ loginId: els.loginId.value, password: els.loginPw.value })
-            });
-            const data = await res.json();
-            if (data.status === 'success') {
-                els.accessToken.value = data.data.accessToken;
-                log(`✅ 로그인 성공 (ID: ${data.data.memberId})`, 'sys');
-                els.loginBtn.textContent = "완료"; els.loginBtn.disabled = true; els.loginBtn.className = 'btn-gray';
-                loadDocuments();
-            } else { alert(data.message); }
-        } catch (e) { log(`❌ 로그인 실패: ${e}`, 'sys'); }
-    };
+    try {
+      if (awareness && onAwarenessUpdate) awareness.off('update', onAwarenessUpdate);
+    } catch (e) {}
+    onAwarenessUpdate = null;
 
-    // === 2. 문서 목록 조회 ===
-    async function loadDocuments() {
-        const token = els.accessToken.value;
-        if (!token) return alert("로그인 필요");
-        try {
-            const res = await fetch(`${API_BASE}/projects/${els.projectId.value}/documents`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.status === 'success') {
-                renderDocList(data.data.documents);
-                log(`📄 문서 목록 ${data.data.documents.length}개 로드`, 'sys');
-            }
-        } catch (e) { log(`❌ 목록 로드 실패`, 'sys'); }
-    }
-    els.loadDocsBtn.onclick = loadDocuments;
+    try {
+      if (ydoc && onYDocUpdate) ydoc.off('update', onYDocUpdate);
+    } catch (e) {}
+    onYDocUpdate = null;
 
-    function renderDocList(docs) {
+    try { if (quillBinding) quillBinding.destroy(); } catch (e) {}
+    quillBinding = null;
+
+    try { if (awareness) awareness.destroy(); } catch (e) {}
+    awareness = null;
+
+    try { if (ydoc) ydoc.destroy(); } catch (e) {}
+    ydoc = null;
+
+    setConnectedUI(false);
+  }
+
+  async function loadDocuments() {
+    const token = els.accessToken.value;
+    if (!token) return alert('로그인 필요');
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${els.projectId.value}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        const docs = data.data.documents || [];
         els.docList.innerHTML = '';
+        if (!docs.length) {
+          els.docList.innerHTML = '<li style="padding:10px; text-align:center;">목록 없음</li>';
+          return;
+        }
         docs.forEach(doc => {
-            const li = document.createElement('li');
-            li.className = 'doc-item';
-            li.innerHTML = `<span>📄 ${doc.title} <small style="color:#999">(${doc.documentId})</small></span><button class="btn-blue" style="width:auto; padding:4px 8px; font-size:12px;">Join</button>`;
-            li.onclick = () => connectWebSocket(doc.documentId, doc.title);
-            els.docList.appendChild(li);
+          const li = document.createElement('li');
+          li.className = 'doc-item';
+          li.innerHTML = `<span>📄 ${doc.title} <small style="color:#999">(${doc.documentId})</small></span><button class="btn-blue" style="width:auto; padding:4px 8px; font-size:12px;">Join</button>`;
+          li.onclick = () => connectWebSocket(doc.documentId, doc.title);
+          els.docList.appendChild(li);
         });
+        log(`📄 문서 목록 ${docs.length}개 로드`, 'sys');
+      } else {
+        alert(data.message || '문서 목록 로드 실패');
+      }
+    } catch (e) {
+      log('❌ 목록 로드 실패', 'sys');
     }
+  }
 
-    // === 3. 문서 생성 ===
-    els.createDocBtn.onclick = async () => {
-        const title = els.newDocTitle.value;
-        const token = els.accessToken.value;
-        if (!title || !token) return alert("제목/로그인 확인");
-        try {
-            const res = await fetch(`${API_BASE}/projects/${els.projectId.value}/documents/text`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ title })
-            });
-            const data = await res.json();
-            if (data.status === 'success') {
-                log(`✨ 문서 생성됨 (${data.data.documentId})`, 'sys');
-                els.newDocTitle.value = '';
-                loadDocuments();
-                connectWebSocket(data.data.documentId, title);
-            }
-        } catch (e) { log("생성 실패", 'sys'); }
+  els.loginBtn.onclick = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: els.loginId.value, password: els.loginPw.value })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        els.accessToken.value = data.data.accessToken;
+        log(`✅ 로그인 성공 (ID: ${data.data.memberId})`, 'sys');
+        els.loginBtn.textContent = '완료';
+        els.loginBtn.disabled = true;
+        els.loginBtn.className = 'btn-gray';
+        loadDocuments();
+      } else {
+        alert(data.message || '로그인 실패');
+      }
+    } catch (e) {
+      log(`❌ 로그인 실패: ${e}`, 'sys');
+    }
+  };
+
+  els.loadDocsBtn.onclick = loadDocuments;
+
+  els.createDocBtn.onclick = async () => {
+    const title = els.newDocTitle.value;
+    const token = els.accessToken.value;
+    if (!title || !token) return alert('제목/로그인 확인');
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${els.projectId.value}/documents/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        log(`✨ 문서 생성됨 (${data.data.documentId})`, 'sys');
+        els.newDocTitle.value = '';
+        loadDocuments();
+        connectWebSocket(data.data.documentId, title);
+      } else {
+        alert(data.message || '문서 생성 실패');
+      }
+    } catch (e) {
+      log('생성 실패', 'sys');
+    }
+  };
+
+  function connectWebSocket(docId, title) {
+    if (ws || ydoc || awareness || quillBinding) cleanupConnection(false);
+
+    currentDocId = docId;
+    els.currentDocTitle.textContent = `${title} (ID: ${docId})`;
+    setConnectedUI(false);
+    quill.enable(false);
+
+    const token = els.accessToken.value;
+    if (!token) return alert('로그인 필요');
+
+    ydoc = new Y.Doc();
+    const ytext = ydoc.getText('content');
+
+    awareness = new awarenessProtocol.Awareness(ydoc);
+    const myColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+    awareness.setLocalStateField('user', { name: els.loginId.value, color: myColor });
+
+    quillBinding = new QuillBinding(ytext, quill);
+
+    const wsUrl = `ws://localhost:8080/ws/docs/${docId}?token=${encodeURIComponent(token)}`;
+    log('Connecting...', 'sys');
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      log('🔌 Connected', 'sys');
+      setConnectedUI(true);
+
+      safeSend({ type: 'JOIN', docId });
+
+      onAwarenessUpdate = (changes, origin) => {
+        if (origin === 'remote') return;
+
+        const changed = changes.added.concat(changes.updated).concat(changes.removed);
+        if (!changed.length) return;
+
+        const encoded = awarenessProtocol.encodeAwarenessUpdate(awareness, changed);
+        safeSend({ type: 'AWARENESS', docId, payload: toBase64(encoded) });
+      };
+      awareness.on('update', onAwarenessUpdate);
+
+      onYDocUpdate = (update, origin) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (origin === 'ws' || origin === 'sys') return;
+        safeSend({ type: 'UPDATE', docId, payload: toBase64(update) });
+      };
+      ydoc.on('update', onYDocUpdate);
     };
 
-    // === 4. WebSocket & Quill & Yjs ===
-    function connectWebSocket(docId, title) {
-        if (ws) {
-            sendSnapshot();
-            ws.close();
-            if (quillBinding) quillBinding.destroy();
-            ydoc.destroy();
+    ws.onmessage = (event) => {
+      console.log("RAW event.data:", event.data);
+      let msg;
+      try { msg = JSON.parse(event.data); } catch (e) { return; }
+
+      if (msg.type === 'INITIAL_LOAD') {
+        log('📥 INITIAL_LOAD', 'in');
+
+        const content = msg.payload ?? '[]';
+
+        // DB content는 "Yjs 업데이트(base64) 배열 JSON 문자열"이 정답
+        try {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            ydoc.transact(() => {
+              parsed.forEach(u => {
+                if (typeof u === 'string' && u.length > 0) {
+                  Y.applyUpdate(ydoc, fromBase64(u), 'ws');
+                }
+              });
+            }, 'ws');
+          }
+        } catch (e) {
+          // 혹시라도 잘못된 값이면 아무것도 안 함
         }
-
-        currentDocId = docId;
-        els.currentDocTitle.textContent = `${title} (ID: ${docId})`;
-        quill.setText('연결 중...');
-        quill.enable(false);
-
-        const token = els.accessToken.value;
-        
-        // Yjs 초기화
-        ydoc = new Y.Doc();
-        const ytext = ydoc.getText('content'); // 'content' 필드 사용
-
-        // Awareness (커서) 설정
-        awareness = new Awareness(ydoc);
-        const myColor = '#' + Math.floor(Math.random()*16777215).toString(16);
-        awareness.setLocalStateField('user', { name: els.loginId.value, color: myColor });
-
-        // Quill Binding
-        quillBinding = new QuillBinding(ytext, quill, awareness);
-
-        // 소켓 연결
-        // const wsUrl = `wss://api.connecteamed.shop/ws/docs/${docId}?token=${token}`; // 배포
-        const wsUrl = `ws://localhost:8080/ws/docs/${docId}?token=${token}`; // 로컬
-        log(`Connecting...`, 'sys');
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-            log("🔌 Connected", 'sys');
-            els.connectionStatus.textContent = "Connected";
-            els.connectionStatus.classList.replace('status-disconnected', 'status-connected');
-            quill.enable(true);
-            els.disconnectBtn.style.display = 'block';
-            
-            ws.send(JSON.stringify({ type: "JOIN", docId: docId }));
-            
-            // Awareness(커서) 변경 시 전송
-            awareness.on('update', ({ added, updated, removed }) => {
-                const changed = added.concat(updated).concat(removed);
-                const encoded = Y.encodeAwarenessUpdate(awareness, changed);
-                ws.send(JSON.stringify({ type: "AWARENESS", docId: docId, payload: toBase64(encoded) }));
-            });
-        };
-
-        ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-
-            if (msg.type === "INITIAL_LOAD") {
-                log("📥 데이터 로드", 'in');
-                const content = msg.payload;
-                try {
-                    if (content.trim().startsWith("[")) { // 압축된 Yjs 데이터
-                         const parsed = JSON.parse(content);
-                         if (Array.isArray(parsed)) {
-                             ydoc.transact(() => {
-                                 parsed.forEach(u => Y.applyUpdate(ydoc, fromBase64(u), 'ws'));
-                             });
-                         }
-                    } else { // 일반 텍스트
-                         if (quill.getText().trim().length === 0) quill.setText(content);
-                    }
-                } catch(e) {}
-            }
-            else if (msg.type === "UPDATE") {
-                Y.applyUpdate(ydoc, fromBase64(msg.payload), 'ws');
-            }
-            else if (msg.type === "AWARENESS") { // 상대방 커서
-                Y.applyAwarenessUpdate(awareness, fromBase64(msg.payload), 'ws');
-            }
-            else if (msg.type === "PRESENCE_UPDATE") {
-                const users = JSON.parse(msg.payload);
-                renderPresence(users);
-            }
-        };
-
-        // 문서 내용 변경 시 전송
-        ydoc.on('update', (update, origin) => {
-            if (origin !== 'ws' && origin !== 'sys') {
-                 ws.send(JSON.stringify({ type: "UPDATE", docId: docId, payload: toBase64(update) }));
-            }
-        });
-
-        ws.onclose = () => {
-            log("🔌 Disconnected", 'sys');
-            els.connectionStatus.textContent = "Disconnected";
-            els.connectionStatus.classList.replace('status-connected', 'status-disconnected');
-            quill.enable(false);
-            els.disconnectBtn.style.display = 'none';
-            els.presenceBar.innerHTML = '';
-            ws = null;
-        };
-    }
-
-    function renderPresence(users) {
-        els.presenceBar.innerHTML = '';
-        users.forEach(user => {
-            const div = document.createElement('div');
-            div.className = 'user-avatar';
-            div.innerHTML = `<div class="user-dot"></div> ${user.userName}`;
-            els.presenceBar.appendChild(div);
-        });
-    }
-
-    // === 스냅샷 저장 ===
-    function sendSnapshot() {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            const stateUpdate = Y.encodeStateAsUpdate(ydoc);
-            const compressed = toBase64(stateUpdate);
-            const plain = quill.getText(); // Quill은 getText() 사용
-
-            ws.send(JSON.stringify({
-                type: "SAVE_SNAPSHOT",
-                docId: currentDocId,
-                payload: plain,
-                content: compressed
-            }));
-            log("💾 저장됨", 'sys');
+      }
+      else if (msg.type === 'UPDATE') {
+        try {
+          Y.applyUpdate(ydoc, fromBase64(msg.payload), 'ws');
+        } catch (e) {}
+      }
+      else if (msg.type === 'AWARENESS') {
+        try {
+          awarenessProtocol.applyAwarenessUpdate(awareness, fromBase64(msg.payload), 'ws');
+          renderRemoteCursors();
+        } catch (e) {}
+      }
+      else if (msg.type === 'PRESENCE_UPDATE') {
+        // 서버가 payload에 objectMapper로 users(Set<Object>) JSON을 넣어줌
+        try {
+          const users = JSON.parse(msg.payload || '[]');
+          renderPresence(users);
+        } catch (e) {
+          renderPresence([]);
         }
-    }
+      }
+    };
 
-    els.disconnectBtn.onclick = () => { if(ws) { sendSnapshot(); ws.close(); } };
-    window.addEventListener("beforeunload", () => { if(ws && ws.readyState === WebSocket.OPEN) sendSnapshot(); });
+    ws.onclose = () => {
+      log('🔌 Disconnected', 'sys');
+      cleanupConnection(true);
+    };
+
+    ws.onerror = () => {
+      log('❌ WebSocket error', 'sys');
+    };
+  }
+
+  function renderRemoteCursors() {
+    const cursors = quill.getModule('cursors');
+    if (!cursors || !awareness) return;
+
+    const states = awareness.getStates();
+    cursors.clearCursors();
+
+    states.forEach((st, clientId) => {
+      if (awareness && clientId === awareness.clientID) return;
+      if (!st || !st.user || !st.cursor) return;
+      const name = st.user.name || 'user';
+      const color = st.user.color || '#4f46e5';
+      const { index, length } = st.cursor;
+
+      cursors.createCursor(String(clientId), name, color);
+      cursors.moveCursor(String(clientId), { index, length });
+    });
+  }
+
+  function sendSnapshot() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ydoc) return;
+
+    // 서버 SAVE_SNAPSHOT은 payload(plain) + content(compressed) 둘 다 받음
+    const stateUpdate = Y.encodeStateAsUpdate(ydoc);
+    const compressed = toBase64(stateUpdate);
+    const plain = quill.getText();
+
+    safeSend({
+      type: 'SAVE_SNAPSHOT',
+      docId: currentDocId,
+      payload: plain,
+      content: compressed
+    });
+    log('💾 DB 저장 전송 (스냅샷)', 'sys');
+  }
+
+  els.disconnectBtn.onclick = () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      sendSnapshot();
+      ws.close();
+    } else {
+      cleanupConnection(true);
+    }
+  };
+
+  window.addEventListener('beforeunload', () => {
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) sendSnapshot();
+    } catch (e) {}
+  });
 </script>
+
 </body>
 </html>
