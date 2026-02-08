@@ -66,7 +66,13 @@ class MeetingServiceTest {
         Long projectId = 1L;
         Long userId = 10L;
 
-        var req = new MeetingCreateReq(projectId,"주간 회의", java.time.Instant.parse("2026-01-15T10:00:00Z"), List.of("안건1"), List.of(1L, 2L));
+        var req = new MeetingCreateReq(
+                projectId,
+                "주간 회의",
+                Instant.parse("2026-01-15T10:00:00Z"),
+                List.of(new MeetingCreateReq.AgendaReq("안건1", "내용1", 1)),
+                List.of(1L, 2L)
+        );
 
         Project projectRef = mock(Project.class);
         ProjectMember memberRef = mock(ProjectMember.class);
@@ -128,6 +134,48 @@ class MeetingServiceTest {
     }
 
     @Test
+    @DisplayName("회의록 수정: 참석자 초기화 후 flush가 호출되는지 확인")
+    void updateMeeting_flush_check() {
+        // given
+        Long meetingId = 100L;
+        Long userId = 10L;
+        Long projectId = 1L;
+
+        Project mockProject = mock(Project.class);
+        ProjectMember mockProjectMember = mock(ProjectMember.class);
+        Member mockMember = mock(Member.class);
+
+        lenient().when(mockProject.getId()).thenReturn(projectId);
+        lenient().when(mockProjectMember.getId()).thenReturn(1L);
+        lenient().when(mockProjectMember.getMember()).thenReturn(mockMember);
+        lenient().when(mockMember.getId()).thenReturn(1L);
+        lenient().when(mockMember.getName()).thenReturn("테스터");
+        lenient().when(mockProjectMember.getRoles()).thenReturn(List.of()); // roles 리스트 비어있음 설정
+
+        Meeting existingMeeting = Meeting.builder()
+                .title("기존")
+                .project(mockProject)
+                .meetingDate(Instant.now())
+                .build();
+        ReflectionTestUtils.setField(existingMeeting, "id", meetingId);
+
+        given(securityUtil.getCurrentMemberId()).willReturn(userId);
+        given(projectMemberRepository.existsByProjectIdAndMemberId(projectId, userId)).willReturn(true);
+
+        var req = new MeetingUpdateReq("수정", Instant.now(), List.of(), List.of(1L));
+
+        given(meetingRepository.findByIdAndDeletedAtIsNull(meetingId)).willReturn(Optional.of(existingMeeting));
+        given(projectMemberRepository.findById(1L)).willReturn(Optional.of(mockProjectMember));
+
+        // when
+        meetingService.updateMeeting(meetingId, req);
+
+        // then
+        then(meetingRepository).should().flush();
+        assertThat(existingMeeting.getTitle()).isEqualTo("수정");
+    }
+
+    @Test
     @DisplayName("회의록 상세 조회: 존재하지 않는 ID 조회 시 예외 발생")
     void getMeeting_fail_notFound() {
         // given
@@ -140,5 +188,33 @@ class MeetingServiceTest {
                 .hasFieldOrPropertyWithValue("code", GeneralErrorCode.NOT_FOUND);
 
         verify(contributionService, never()).recordContribution(any(), any());
+    }
+
+    @Test
+    @DisplayName("회의록 삭제: deletedAt 필드에 시간이 기록되는지 확인")
+    void deleteMeeting_success() {
+        // given
+        Long meetingId = 100L;
+        Long userId = 10L;
+        Long projectId = 1L;
+
+        Project mockProject = mock(Project.class);
+        given(mockProject.getId()).willReturn(projectId);
+
+        Meeting existingMeeting = Meeting.builder()
+                .title("삭제할 회의")
+                .project(mockProject)
+                .build();
+        ReflectionTestUtils.setField(existingMeeting, "id", meetingId);
+
+        given(securityUtil.getCurrentMemberId()).willReturn(userId);
+        given(projectMemberRepository.existsByProjectIdAndMemberId(projectId, userId)).willReturn(true);
+        given(meetingRepository.findByIdAndDeletedAtIsNull(meetingId)).willReturn(Optional.of(existingMeeting));
+
+        // when
+        meetingService.deleteMeeting(meetingId);
+
+        // then
+        assertThat(existingMeeting.getDeletedAt()).isNotNull();
     }
 }

@@ -60,6 +60,10 @@ public class Meeting extends BaseEntity {
         this.attendees.add(attendee);
     }
 
+    public void delete() {
+        this.deletedAt = Instant.now();
+    }
+
     @PrePersist
     public void prePersist() {
         if (this.publicId == null) {

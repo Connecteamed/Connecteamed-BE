@@ -54,4 +54,11 @@ public class MeetingController {
         MeetingDetailRes result = meetingService.getMeeting(meetingId);
         return ApiResponse.onSuccess(GeneralSuccessCode._OK, result);
     }
+
+    @Operation(summary = "회의록 삭제")
+    @DeleteMapping("/meetings/{meetingId}")
+    public ApiResponse<String> deleteMeeting(@PathVariable Long meetingId) {
+        meetingService.deleteMeeting(meetingId);
+        return ApiResponse.onSuccess(GeneralSuccessCode._OK, "회의록이 성공적으로 삭제되었습니다.");
+    }
 }
