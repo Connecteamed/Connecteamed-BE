@@ -100,6 +100,8 @@ public class CollabSocketController extends TextWebSocketHandler {
         msg.setUserId(session.getId());
         String docId = (String) session.getAttributes().get("docId");
 
+        msg.setDocId(docId);
+
         // [핵심] JOIN 메시지가 오면 그때 DB+Redis 데이터를 순서대로 줍니다.
         if ("JOIN".equals(msg.getType())) {
             processJoin(session, docId);
@@ -109,6 +111,7 @@ public class CollabSocketController extends TextWebSocketHandler {
         if ("UPDATE".equals(msg.getType())) {
             saveUpdateToRedis(docId, msg.getPayload());
             redisTemplate.convertAndSend("doc-channel", msg);
+            return;
         }
 
         // if ("SAVE_SNAPSHOT".equals(msg.getType())) {
