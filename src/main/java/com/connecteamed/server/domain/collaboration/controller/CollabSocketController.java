@@ -1,0 +1,277 @@
+package com.connecteamed.server.domain.collaboration.controller;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import com.connecteamed.server.domain.collaboration.dto.SocketMessage;
+import com.connecteamed.server.domain.collaboration.dto.UserPresenceDto;
+import com.connecteamed.server.domain.collaboration.service.DocumentCollaborationService;
+import com.connecteamed.server.domain.collaboration.service.PresenceService;
+import com.connecteamed.server.domain.document.entity.Document;
+import com.connecteamed.server.domain.document.repository.DocumentRepository;
+import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class CollabSocketController extends TextWebSocketHandler {
+
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final PresenceService presenceService;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final DocumentRepository documentRepository;
+
+    private final DocumentCollaborationService collabService;
+
+    private static final Map<String, Set<WebSocketSession>> localRoomSessions = new ConcurrentHashMap<>();
+    private static final String HISTORY_KEY_PREFIX = "doc:history:";
+    private static final String PREVIEW_KEY_PREFIX = "doc:preview:";
+    private static final String YJS_SNAPSHOT_KEY_PREFIX = "doc:snapshot:";
+
+    // 1. 소켓 연결 시
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        String path = session.getUri().getPath();
+        String docId = path.substring(path.lastIndexOf('/') + 1);
+        session.getAttributes().put("docId", docId);
+        
+        // ★ [추가] Interceptor에서 넣어둔 유저 정보 가져오기
+        UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
+
+        Document document = documentRepository.findById(Long.parseLong(docId)).orElse(null);
+        
+        if (document == null) {
+            log.error("Document not found: {}", docId);
+            session.close(CloseStatus.BAD_DATA);
+            return;
+        }
+
+        // 2. [핵심] 프로젝트 멤버인지 확인
+        // "이 문서의 프로젝트 ID"와 "유저의 로그인 ID"로 검사합니다.
+        boolean isProjectMember = projectMemberRepository.existsByProjectIdAndMemberLoginId(
+                document.getProject().getId(), 
+                user.getUserId() // "string1"
+        );
+
+        if (!isProjectMember) {
+            log.warn("Unauthorized: User {} is not a member of Project {}", user.getUserId(), document.getProject().getId());
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
+
+        // 3. 인증 성공 표시 (퇴장 로직 오류 방지용)
+        session.getAttributes().put("authorized", true);
+
+        if (user != null) {
+            // Redis 출석부에 등록 (문서별 접속자 관리)
+            presenceService.addUser("doc", docId, user);
+            log.info("User {} entered doc {}", user.getUserId(), docId);
+        }
+
+        // 방 세션에 추가
+        localRoomSessions.computeIfAbsent(docId, k -> Collections.synchronizedSet(new HashSet<>())).add(session);
+        
+        // ★ [추가] 입장했으니 최신 접속자 목록을 모두에게 알림
+        broadcastUserList(docId);
+    }
+
+    // 2. 메시지 처리
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        SocketMessage msg = objectMapper.readValue(message.getPayload(), SocketMessage.class);
+        msg.setUserId(session.getId());
+        String docId = (String) session.getAttributes().get("docId");
+
+        // [핵심] JOIN 메시지가 오면 그때 DB+Redis 데이터를 순서대로 줍니다.
+        if ("JOIN".equals(msg.getType())) {
+            processJoin(session, docId);
+            return; 
+        }
+
+        if ("UPDATE".equals(msg.getType())) {
+            saveUpdateToRedis(docId, msg.getPayload());
+            redisTemplate.convertAndSend("doc-channel", msg);
+        }
+
+        // if ("SAVE_SNAPSHOT".equals(msg.getType())) {
+        //     // Service에게 위임
+        //     collabService.savePlainTextSnapshot(docId, msg.getPayload());
+        // }
+
+        // ★ [수정됨] 스냅샷 저장 로직 (Text + Yjs압축 둘 다 Redis에 임시 저장)
+        if ("SAVE_SNAPSHOT".equals(msg.getType())) {
+            // 1. 사람이 읽는 텍스트 (Plain Text) -> doc:preview:{id}
+            if (msg.getPayload() != null) {
+                String previewKey = PREVIEW_KEY_PREFIX + docId;
+                redisTemplate.opsForValue().set(previewKey, msg.getPayload(), 24, TimeUnit.HOURS);
+            }
+
+            // 2. 기계가 읽는 압축 데이터 (Compressed Yjs) -> doc:snapshot:{id}
+            // 이게 있어야 DB 용량이 획기적으로 줄어듭니다!
+            if (msg.getContent() != null) {
+                String snapshotKey = YJS_SNAPSHOT_KEY_PREFIX + docId;
+                redisTemplate.opsForValue().set(snapshotKey, msg.getContent(), 24, TimeUnit.HOURS);
+                log.debug("Cached compressed Yjs snapshot for doc {}", docId);
+            }
+        }
+    }
+
+    // 3. 퇴장 시
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        if (session.getAttributes().get("authorized") == null) {
+            return; 
+        }
+        String docId = (String) session.getAttributes().get("docId");
+        UserPresenceDto user = (UserPresenceDto) session.getAttributes().get("user");
+        
+        // 1. 로컬 세션 정리
+        Set<WebSocketSession> sessions = localRoomSessions.get(docId);
+        if (sessions != null) {
+            sessions.remove(session);
+            if (sessions.isEmpty()) {
+                localRoomSessions.remove(docId);
+            }
+        }
+
+        // 2. Redis 출석부에서 유저 제거
+        if (user != null) {
+            presenceService.removeUser("doc", docId, user);
+        }
+
+        // 3. [핵심 로직 변경]
+        // "내 서버"의 세션이 비었는지가 아니라, "Redis(전체 서버)"에 아무도 없는지 확인
+        Set<Object> remainingUsers = presenceService.getUsers("doc", docId);
+
+        if (remainingUsers == null || remainingUsers.isEmpty()) {
+            log.info("Users count is 0 for doc {}. Saving Yjs History to DB...", docId);
+            
+            // ★ 여기서 저장하는 건 "Yjs 히스토리(content)" 입니다.
+            // plain_text는 위에서 SAVE_SNAPSHOT 메시지로 이미 저장되었을 겁니다.
+            saveRedisToDb(docId); 
+            
+            // (선택) Presence 키 삭제 (깔끔하게)
+            // redisTemplate.delete("presence:doc:" + docId);
+        } else {
+            // 아직 누군가 남아있으면 접속자 목록 갱신 방송
+            broadcastUserList(docId);
+        }
+    }
+
+    // 4. Redis Pub/Sub 브로드캐스트
+    public void broadcastToLocal(SocketMessage msg) {
+        Set<WebSocketSession> sessions = localRoomSessions.get(msg.getDocId());
+        if (sessions != null) {
+            sessions.forEach(session -> {
+                if (session.isOpen() && !session.getId().equals(msg.getUserId())) {
+                    try {
+                        String json = objectMapper.writeValueAsString(msg);
+                        session.sendMessage(new TextMessage(json));
+                    } catch (IOException e) {
+                        log.error("Broadcast failed", e);
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * [통합 메서드] 입장 시 DB 데이터(1타) + Redis 변경분(2타) 전송
+     */
+    private void processJoin(WebSocketSession session, String docId) throws IOException {
+        // 1. Service 호출 (트랜잭션 처리됨)
+        String dbContent = collabService.getDocumentContent(docId);
+        
+        if (dbContent != null) {
+            SocketMessage dbMsg = new SocketMessage();
+            dbMsg.setType("INITIAL_LOAD");
+            dbMsg.setDocId(docId);
+            dbMsg.setPayload(dbContent);
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(dbMsg)));
+        }
+
+        // 2. Redis 조회 (Redis는 트랜잭션 필요 없음)
+        String key = HISTORY_KEY_PREFIX + docId;
+        List<Object> redisHistory = redisTemplate.opsForList().range(key, 0, -1);
+        
+        if (redisHistory != null && !redisHistory.isEmpty()) {
+            log.info("Sending {} redis updates to user {}", redisHistory.size(), session.getId());
+            for (Object payload : redisHistory) {
+                SocketMessage redisMsg = new SocketMessage();
+                redisMsg.setType("UPDATE");
+                redisMsg.setDocId(docId);
+                redisMsg.setPayload((String) payload);
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(redisMsg)));
+            }
+        }
+    }
+
+    private void saveUpdateToRedis(String docId, String payload) {
+        String key = HISTORY_KEY_PREFIX + docId;
+        redisTemplate.opsForList().rightPush(key, payload);
+        redisTemplate.expire(key, 24, TimeUnit.HOURS); 
+    }
+
+    // 6. DB 저장 메서드 수정
+    // === saveRedisToDb (DB에 저장할 때) ===
+    private void saveRedisToDb(String docId) {
+        String historyKey = HISTORY_KEY_PREFIX + docId;
+        String previewKey = PREVIEW_KEY_PREFIX + docId;
+        String snapshotKey = YJS_SNAPSHOT_KEY_PREFIX + docId; // ★ 추가
+
+        // Redis에서 데이터 3종 세트 가져오기
+        List<Object> newUpdates = redisTemplate.opsForList().range(historyKey, 0, -1);
+        String latestPreview = (String) redisTemplate.opsForValue().get(previewKey);
+        String compressedYjs = (String) redisTemplate.opsForValue().get(snapshotKey); // ★ 가져오기
+
+        // 저장할 게 하나라도 있으면 실행
+        if ((newUpdates != null && !newUpdates.isEmpty()) || latestPreview != null || compressedYjs != null) {
+            
+            // 서비스 호출 (압축 데이터 compressedYjs 도 같이 넘김)
+            collabService.saveAndFlushHistory(docId, newUpdates, latestPreview, compressedYjs);
+            
+            // Redis 청소
+            redisTemplate.delete(historyKey);
+            redisTemplate.delete(previewKey);
+            redisTemplate.delete(snapshotKey); // ★ 추가
+
+            log.info("Saved DB for doc {}", docId);
+        }
+    }
+
+    // 7.접속자 명단 전송 메서드
+    private void broadcastUserList(String docId) {
+        Set<Object> users = presenceService.getUsers("doc", docId);
+        
+        SocketMessage msg = new SocketMessage();
+        msg.setType("PRESENCE_UPDATE"); // 클라이언트가 처리할 타입
+        msg.setDocId(docId);
+        try {
+            msg.setPayload(objectMapper.writeValueAsString(users)); // 유저 목록 JSON
+            
+            // Redis Pub/Sub으로 전송 (그래야 다른 서버에 붙은 유저도 알 수 있음)
+            redisTemplate.convertAndSend("doc-channel", msg);
+        } catch (Exception e) {
+            log.error("Presence broadcast failed", e);
+        }
+    }
+
+}
