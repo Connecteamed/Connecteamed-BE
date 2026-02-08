@@ -1,0 +1,10 @@
+package com.connecteamed.server.domain.contribution.enums;
+
+public enum ContributionAction {
+    TASK_CREATE, TASK_UPDATE,
+    MEETING_CREATE, MEETING_UPDATE,
+    PROJECT_CREATE, PROJECT_UPDATE,
+    DOCUMENT_CREATE, DOCUMENT_UPDATE,
+    COMPLETED_TASK_UPDATE,
+    RETROSPECTIVE_CREATE, RETROSPECTIVE_UPDATE;
+}

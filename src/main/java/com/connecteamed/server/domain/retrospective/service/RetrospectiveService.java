@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.retrospective.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
@@ -29,18 +32,17 @@ public class RetrospectiveService {
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
     private final RetrospectiveAsyncService retrospectiveAsyncService;
+    private final ContributionService contributionService;
 
     // ai 회고 생성
     @Transactional
     public RetrospectiveCreateRes createAiRetrospective(Long projectId, Long memberId, RetrospectiveCreateReq request){
 
         Project project = projectRepository.findByIdWithDetails(projectId)
-                .orElseThrow(() -> new RuntimeException("프로젝트를 찾을 수 없습니다."));
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
-        ProjectMember writer = project.getProjectMembers().stream()
-                .filter(pm -> pm.getId().equals(memberId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("팀원 정보를 찾을 수 없습니다."));
+        ProjectMember writer = projectMemberRepository.findById(memberId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
         List<Task> selectedTasks = taskRepository.findAllById(request.taskIds());
 
@@ -88,6 +90,9 @@ public class RetrospectiveService {
                 otherTasks
         );
 
+        contributionService.recordContribution(writer.getMember().getId(),
+                new ContributionReq(ContributionAction.RETROSPECTIVE_CREATE, saved.getId()));
+
         return new RetrospectiveCreateRes(saved.getId(), saved.getTitle());
     }
 
@@ -130,6 +135,9 @@ public class RetrospectiveService {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
         retrospective.update(request.title(), request.projectResult());
+
+        contributionService.recordContribution(memberId,
+                new ContributionReq(ContributionAction.RETROSPECTIVE_UPDATE, retrospective.getId()));
     }
 
     // 회고 삭제

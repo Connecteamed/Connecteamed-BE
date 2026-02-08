@@ -1,5 +1,6 @@
 package com.connecteamed.server.domain.notification.entity;
 
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,4 +22,12 @@ public class NotificationType extends BaseEntity {
 
     @Column(name = "display_name", nullable = false, columnDefinition = "TEXT")
     private String displayName; // ex "업무 태그 알림"
+
+    public String getMessage() {
+        return NotificationCategory.from(this.typeKey).getMessage();
+    }
+
+    public String getTargetUrl(Long projectId, Long taskId) {
+        return NotificationCategory.from(this.typeKey).generateUrl(projectId, taskId);
+    }
 }

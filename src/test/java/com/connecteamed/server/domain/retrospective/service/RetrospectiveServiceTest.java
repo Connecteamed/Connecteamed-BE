@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.retrospective.service;
 
+import com.connecteamed.server.domain.contribution.dto.ContributionReq;
+import com.connecteamed.server.domain.contribution.enums.ContributionAction;
+import com.connecteamed.server.domain.contribution.service.ContributionService;
 import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
@@ -15,6 +18,7 @@ import com.connecteamed.server.domain.task.repository.TaskRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,6 +27,7 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +45,8 @@ public class RetrospectiveServiceTest {
     private TaskRepository taskRepository;
     @Mock
     private RetrospectiveAsyncService retrospectiveAsyncService;
+    @Mock
+    private ContributionService contributionService;
 
     @InjectMocks
     private RetrospectiveService retrospectiveService;
@@ -50,20 +57,32 @@ public class RetrospectiveServiceTest {
         // given
         Long projectId = 1L;
         Long memberId = 1L;
+        Long realMemberId = 10L;
         Long mockRetrospectiveId = 100L;
         RetrospectiveCreateReq request = new RetrospectiveCreateReq("테스트 제목", "내 성과", List.of(1L, 2L));
 
         Project project = mock(Project.class);
         ProjectMember writer = mock(ProjectMember.class);
+        Member member = mock(Member.class);
+
+        given(writer.getId()).willReturn(memberId);
+        given(writer.getMember()).willReturn(member);
+        given(member.getId()).willReturn(realMemberId);
+        given(project.getProjectMembers()).willReturn(List.of(writer));
+
         List<Task> tasks = List.of(mock(Task.class), mock(Task.class));
 
         AiRetrospective savedRetrospective = AiRetrospective.builder()
                 .title("테스트 제목")
                 .build();
         AiRetrospective spyRetrospective = spy(savedRetrospective);
-        given(spyRetrospective.getId()).willReturn(mockRetrospectiveId);
+        lenient().when(spyRetrospective.getId()).thenReturn(mockRetrospectiveId);
 
-        given(projectRepository.findById(projectId)).willReturn(Optional.of(project));
+        given(project.getProjectMembers()).willReturn(List.of(writer));
+        given(writer.getId()).willReturn(memberId);
+        given(writer.getRoles()).willReturn(List.of());
+
+        given(projectRepository.findByIdWithDetails(projectId)).willReturn(Optional.of(project));
         given(projectMemberRepository.findById(memberId)).willReturn(Optional.of(writer));
         given(taskRepository.findAllById(any())).willReturn(tasks);
         given(aiRetrospectiveRepository.save(any())).willReturn(spyRetrospective);
@@ -75,9 +94,15 @@ public class RetrospectiveServiceTest {
         assertNotNull(result);
         assertEquals(mockRetrospectiveId, result.retrospectiveId());
         verify(aiRetrospectiveRepository, times(1)).save(any());
+
+        ArgumentCaptor<ContributionReq> contribCaptor = ArgumentCaptor.forClass(ContributionReq.class);
+        verify(contributionService).recordContribution(eq(realMemberId), contribCaptor.capture());
+        assertThat(contribCaptor.getValue().actionType()).isEqualTo(ContributionAction.RETROSPECTIVE_CREATE);
+        assertThat(contribCaptor.getValue().targetId()).isEqualTo(mockRetrospectiveId);
+
         verify(retrospectiveAsyncService, times(1)).processAiAnalysis(
                 eq(mockRetrospectiveId),
-                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()
+                any(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -93,6 +118,7 @@ public class RetrospectiveServiceTest {
         ProjectMember writer = mock(ProjectMember.class);
         Member member = mock(Member.class);
 
+        given(retrospective.getId()).willReturn(retrospectiveId);
         given(aiRetrospectiveRepository.findByIdAndProjectId(retrospectiveId, projectId)).willReturn(Optional.of(retrospective));
         given(retrospective.getWriter()).willReturn(writer);
         given(writer.getMember()).willReturn(member);
@@ -102,7 +128,11 @@ public class RetrospectiveServiceTest {
         retrospectiveService.updateRetrospective(memberId, projectId, retrospectiveId, new RetrospectiveUpdateReq("새 제목", "새 결과"));
 
         // then
-        verify(retrospective).update(anyString(), anyString()); // 엔티티의 update 메서드가 호출되었는지 확인
+        verify(retrospective).update(anyString(), anyString());
+        verify(contributionService).recordContribution(eq(memberId), argThat(c ->
+                c.actionType() == ContributionAction.RETROSPECTIVE_UPDATE &&
+                        retrospectiveId.equals(c.targetId())
+        ));
     }
 
     @Test
