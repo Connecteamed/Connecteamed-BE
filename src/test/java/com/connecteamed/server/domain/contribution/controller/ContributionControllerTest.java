@@ -92,8 +92,23 @@ class ContributionControllerTest {
 
     @Test
     @WithMockUser(username = "test123")
-    @DisplayName("프로젝트 미존재 시 404 에러 반환")
-    void getContributions_NotFound() throws Exception {
+    @DisplayName("팀 전체 업무 통계 조회 - 프로젝트 미존재 시 404 에러 반환")
+    void getTeamContributions_NotFound() throws Exception {
+
+        when(projectContributionService.getEntireContributions(anyLong()))
+                .thenThrow(new GeneralException(ContributionErrorCode.CONTRIBUTION_PROJECT_NOT_FOUND));
+
+        mockMvc.perform(get("/api/contributions/{projectId}/entire", 999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.code").value("CONTRIBUTION_PROJECT_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("해당 Id의 프로젝트를 찾을 수 없습니다."));
+    }
+
+    @Test
+    @WithMockUser(username = "test123")
+    @DisplayName("팀원별 업무 통계 조회 - 프로젝트 미존재 시 404 에러 반환")
+    void getIndividualContributions_NotFound() throws Exception {
 
         when(projectContributionService.getProjectMemberContributions(anyLong()))
                 .thenThrow(new GeneralException(ContributionErrorCode.CONTRIBUTION_PROJECT_NOT_FOUND));
