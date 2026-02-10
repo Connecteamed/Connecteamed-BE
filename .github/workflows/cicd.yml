@@ -93,44 +93,104 @@ jobs:
           script: |
             set -e
 
-            echo "[1] move to deploy path"
-            cd "$DEPLOY_PATH"
-
-            echo "[1.1] save previous commit for rollback (Before Fetch)"
-            PREV_COMMIT=$(git rev-parse HEAD)
-
-            # 롤백 함수 정의
-            rollback() {
-              echo "[ROLLBACK] deployment failed. reverting to previous commit: $PREV_COMMIT"
-              trap - ERR
+            # ==========================================
+            # [함수 1] 공통 헬스 체크 함수 (타겟 포트 체크)
+            # ==========================================
+            wait_for_health() {
+              local port=$1
+              echo "[Health Check] Waiting for service on port $port..."
               
-              # 코드 되돌리기 (강제 리셋)
-              git reset --hard "$PREV_COMMIT"
+              for i in $(seq 1 60); do
+                code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/actuator/health || echo "000")
+                
+                if [ "$code" = "200" ]; then
+                  echo "✅ Service is UP (HTTP 200)"
+                  return 0
+                fi
+                sleep 2
+              done
               
-              # 이전 상태로 재빌드 및 실행
-              chmod +x ./gradlew
-              ./gradlew clean bootJar
-              sudo docker compose build app
-              sudo docker compose up -d --no-deps --remove-orphans app
-              
-              echo "[ROLLBACK] done"
+              echo "❌ Health check failed after 120s."
+              return 1
             }
 
-            # 에러 발생 시 rollback 함수 실행
+            # ==========================================
+            # [함수 2] 롤백 함수
+            # ==========================================
+            rollback() {
+              echo "[ROLLBACK] 🚨 Deployment failed. Reverting..."
+              trap - ERR
+              
+              # 1. 롤백 시에는 그냥 기존 방식(Downtime 감수)으로 복구하거나,
+              #    혹은 이전 컬러 컨테이너를 다시 살리는 방식을 쓸 수 있습니다.
+              #    안정성을 위해 가장 심플하게 '이전 커밋으로 되돌리고 강제 재배포'를 수행합니다.
+              
+              git reset --hard "$PREV_COMMIT"
+              
+              # 기존에 돌던 포트가 죽었을 수 있으므로 다시 살려냅니다.
+              # (복잡도를 줄이기 위해 롤백은 싱글 인스턴스로 복구한다고 가정)
+              echo "[ROLLBACK] Rebuilding original state..."
+              chmod +x ./gradlew
+              ./gradlew clean bootJar
+              
+              # 롤백은 원래 포트(예: 8080)나 현재 타겟의 반대편을 살려야 하지만,
+              # 급한 불을 끄기 위해 현재 타겟(실패한 녀석)을 다시 이전 코드로 덮어씁니다.
+              
+              export APP_PORT=$TARGET_PORT
+              export CONTAINER_NAME="app-$TARGET_COLOR"
+              
+              sudo -E docker compose -p ${TARGET_COLOR} up -d --build
+              
+              if wait_for_health $TARGET_PORT; then
+                echo "[ROLLBACK] ✅ Service restored."
+              else
+                echo "[ROLLBACK] ❌ Critical Failure."
+                exit 1
+              fi
+            }
+
             trap 'rollback; exit 1' ERR
 
-            echo "[2] ensure working tree is clean"
+            # ==========================================
+            # [메인] 배포 로직 시작
+            # ==========================================
+            
+            echo "[1] Move to deploy path"
+            cd "$DEPLOY_PATH"
+
+            echo "[2] Check Current Port & Determine Target"
+            # 8080 or 8081 추출
+            CURRENT_PORT=$(cat /etc/nginx/conf.d/service-url.inc | grep -o '808[0-9]')
+
+            if [ "$CURRENT_PORT" == "8080" ]; then
+              TARGET_PORT=8081
+              TARGET_COLOR="green"
+              CURRENT_COLOR="blue"
+            elif [ "$CURRENT_PORT" == "8081" ]; then
+              TARGET_PORT=8080
+              TARGET_COLOR="blue"
+              CURRENT_COLOR="green"
+            else
+              echo "⚠️ Defaulting to Green(8081)."
+              TARGET_PORT=8081
+              TARGET_COLOR="green"
+              CURRENT_COLOR="blue"
+            fi
+
+            echo "🔵 Current: $CURRENT_COLOR ($CURRENT_PORT)"
+            echo "🟢 Target : $TARGET_COLOR ($TARGET_PORT)"
+
+            echo "[3] Save Commit & Pull Code"
+            PREV_COMMIT=$(git rev-parse HEAD)
+            
             git reset --hard HEAD
             git clean -fd
-
-            echo "[3] update source (develop)"
             git fetch origin develop
             git checkout -B develop origin/develop
             git reset --hard origin/develop
 
-            echo "[4] write .env (overwrite on Server)"
-            umask 077
-            # envs로 넘겨받은 변수들은 $변수명 으로 바로 사용 가능
+            echo "[4] Create .env"
+            # ... (env 생성 로직은 기존과 동일하게 유지 - 생략 가능하면 생략하거나 그대로 두세요) ...
             cat <<EOF > .env
             DB_HOST=$DB_HOST
             DB_PORT=$DB_PORT
@@ -153,34 +213,33 @@ jobs:
             EOF
             chmod 600 .env
 
-            echo "[5] build jar (Server resource heavy warning ⚠️)"
+            echo "[5] Build Jar"
             chmod +x ./gradlew
             ./gradlew clean bootJar
 
-            echo "[6] rebuild image"
-            sudo docker compose build app
+            echo "[6] Run New Container ($TARGET_COLOR)"
+            export APP_PORT=$TARGET_PORT
+            export CONTAINER_NAME="app-$TARGET_COLOR"
+            
+            sudo -E docker compose -p ${TARGET_COLOR} up -d --build
 
-            echo "[7] restart app container"
-            sudo docker compose up -d --remove-orphans
-
-            echo "[8] health check"
-            up=0
-            for i in $(seq 1 60); do
-              code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
-              # 200(성공), 401/403(인증에러-서버는 뜸) 이면 성공으로 간주
-              if [ "$code" = "200" ] || [ "$code" = "401" ] || [ "$code" = "403" ]; then
-                echo "Service is up (HTTP $code)"
-                up=1
-                break
-              fi
-              echo "Waiting... ($i/60)"
-              sleep 2
-            done
-
-            if [ "$up" -ne 1 ]; then
-              echo "Service failed to start."
+            echo "[7] Health Check ($TARGET_COLOR)"
+            if ! wait_for_health $TARGET_PORT; then
+              echo "❌ New container failed to start."
+              sudo docker compose -p ${TARGET_COLOR} logs --tail=50
+              sudo -E docker compose -p ${TARGET_COLOR} down
+              rollback
               exit 1
             fi
 
-            echo "[9] cleanup"
+            echo "[8] Switch Nginx Traffic"
+            echo "set \$service_url http://127.0.0.1:${TARGET_PORT};" | sudo tee /etc/nginx/conf.d/service-url.inc
+            sudo service nginx reload
+
+            echo "[9] Stop Old Container ($CURRENT_COLOR)"
+            sudo docker compose -p ${CURRENT_COLOR} down
+
+            echo "[10] Cleanup Unused Images"
             sudo docker image prune -f
+
+            echo "🚀 Blue/Green Deployment Complete!"
