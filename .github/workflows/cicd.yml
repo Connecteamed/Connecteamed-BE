@@ -98,6 +98,28 @@ jobs:
 
             echo "[1.1] save previous commit for rollback (Before Fetch)"
             PREV_COMMIT=$(git rev-parse HEAD)
+            echo "PREV_COMMIT: $PREV_COMMIT"
+
+            wait_for_health() {
+              echo "[Health Check] Waiting for service (Actuator)..."
+              for i in $(seq 1 60); do
+                code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || echo "000")
+                
+                if [ "$code" = "200" ]; then
+                  echo "✅ Service is UP (HTTP 200)"
+                  return 0  # 성공 시 0 반환
+                fi
+                
+                # 진행 상황 표시 (선택 사항)
+                if [ $((i % 5)) -eq 0 ]; then
+                  echo "Waiting... ($i/60)"
+                fi
+                sleep 2
+              done
+              
+              echo "❌ Health check failed after 120s."
+              return 1  # 실패 시 1 반환
+            }
 
             # 롤백 함수 정의
             rollback() {
@@ -111,9 +133,17 @@ jobs:
               chmod +x ./gradlew
               ./gradlew clean bootJar
               sudo docker compose build app
-              sudo docker compose up -d --no-deps --remove-orphans app
+              sudo docker compose up -d --remove-orphans
               
-              echo "[ROLLBACK] done"
+              # 3. 롤백 버전 헬스 체크 (함수 재사용!)
+              if wait_for_health; then
+                echo "[ROLLBACK] ✅ Rollback successful. Service is restored."
+              else
+                echo "[ROLLBACK] ❌ CRITICAL: Rollback failed. Previous version is also down."
+                echo "====== APP LOGS (Rollback Failed) ======"
+                sudo docker compose logs --tail=50 app
+                exit 1
+              fi
             }
 
             # 에러 발생 시 rollback 함수 실행
@@ -163,22 +193,16 @@ jobs:
             echo "[7] restart app container"
             sudo docker compose up -d --remove-orphans
 
-            echo "[8] health check"
-            up=0
-            for i in $(seq 1 60); do
-              code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
-              # 200(성공), 401/403(인증에러-서버는 뜸) 이면 성공으로 간주
-              if [ "$code" = "200" ] || [ "$code" = "401" ] || [ "$code" = "403" ]; then
-                echo "Service is up (HTTP $code)"
-                up=1
-                break
-              fi
-              echo "Waiting... ($i/60)"
-              sleep 2
-            done
+            echo "[8] health check (Actuator)"
 
-            if [ "$up" -ne 1 ]; then
-              echo "Service failed to start."
+            if ! wait_for_health; then
+              echo "❌ Service failed to start."
+              echo "====== APP CONTAINER LOGS ======"
+              sudo docker compose logs --tail=50 app
+              echo "================================"
+              
+              # 수동으로 롤백 호출
+              rollback
               exit 1
             fi
 
