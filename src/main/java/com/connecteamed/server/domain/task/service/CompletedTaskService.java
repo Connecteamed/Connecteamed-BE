@@ -116,7 +116,7 @@ public class CompletedTaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
-        List<String> assigneeNames = getAssigneeNames(taskId);
+        List<Long> assigneeIds = getAssigneeIds(taskId);
 
         Long currentMemberId = getCurrentUserId();
 
@@ -127,11 +127,11 @@ public class CompletedTaskService {
         return new CompletedTaskDetailRes(
                 task.getId(),
                 task.getName(),
-                task.getContent(),
+                task.getStatus().name(),
+                assigneeIds,
                 task.getStartDate(),
                 task.getDueDate(),
-                task.getStatus().name(),
-                assigneeNames,
+                task.getContent(),
                 myNote
         );
     }
@@ -170,9 +170,9 @@ public class CompletedTaskService {
         task.softDelete();
     }
 
-    private List<String> getAssigneeNames(Long taskId) {
+    private List<Long> getAssigneeIds(Long taskId) {
         return taskAssigneeRepository.findAllByTaskId(taskId).stream()
-                .map(a -> a.getProjectMember().getMember().getName())
+                .map(a -> a.getProjectMember().getMember().getId())
                 .toList();
     }
 

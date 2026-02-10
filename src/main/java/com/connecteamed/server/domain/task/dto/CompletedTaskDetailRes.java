@@ -5,11 +5,11 @@ import java.util.List;
 
 public record CompletedTaskDetailRes (
         Long taskId,
-        String name,
-        String content,
-        Instant startDate,
-        Instant dueDate,
+        String title,
         String status,
-        List<String> assigneeNames,
+        List<Long> assigneeIds,
+        Instant startDate,
+        Instant endDate,
+        String contents,
         String noteContent
 ) {}
