@@ -93,3 +93,9 @@ app:
 
 logging:
   exception-conversion-word: "%wEx{0}"
+
+management:
+  endpoints: 
+    web:
+      exposure:
+        include: health
