@@ -1,5 +1,6 @@
 package com.connecteamed.server.domain.task.controller;
 
+import com.connecteamed.server.domain.task.dto.CompletedTaskDetailRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskListRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskStatusUpdateReq;
 import com.connecteamed.server.domain.task.dto.CompletedTaskUpdateReq;
@@ -27,6 +28,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+
 
 @ExtendWith(MockitoExtension.class)
 class CompletedTaskControllerTest {
@@ -97,11 +100,23 @@ class CompletedTaskControllerTest {
         CompletedTaskUpdateReq req = new CompletedTaskUpdateReq("수정 제목", "DONE", List.of(1L, 2L), "2025.02.10", "2025.02.11", "수정 내용",  "회고 내용");
         String content = objectMapper.writeValueAsString(req);
 
+        CompletedTaskDetailRes responseDto = new CompletedTaskDetailRes(
+                1L, "수정 제목", "DONE", List.of(),
+                null, null, "수정 내용", "회고 내용"
+        );
+
+        when(completedTaskService.updateCompletedTask(anyLong(), any(CompletedTaskUpdateReq.class)))
+                .thenReturn(responseDto);
+
         mockMvc.perform(patch("/api/tasks/{taskId}", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(content))
+                .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("업무 정보 및 회고가 수정되었습니다."));
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.message").value("요청에 성공했습니다."))
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.data.title").value("수정 제목"));
 
         verify(completedTaskService, times(1)).updateCompletedTask(eq(1L), any(CompletedTaskUpdateReq.class));
     }

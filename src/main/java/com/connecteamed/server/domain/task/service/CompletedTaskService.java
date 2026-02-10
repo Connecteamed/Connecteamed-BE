@@ -58,31 +58,32 @@ public class CompletedTaskService {
             return new CompletedTaskListRes(Collections.emptyList());
         }
 
-        List<Long> taskIds = completedTasks.stream()
-                .map(Task::getId)
-                .toList();
-
-        List<TaskAssignee> allAssignees = taskAssigneeRepository.findAllByTaskIdIn(taskIds);
-
-        Map<Long, List<String>> assigneeMap = allAssignees.stream()
-                .collect(Collectors.groupingBy(
-                        assignee -> assignee.getTask().getId(),
-                        Collectors.mapping(
-                                assignee -> assignee.getProjectMember().getMember().getName(),
-                                Collectors.toList()
-                        )
-                ));
+        Long currentMemberId = getCurrentUserId();
 
         List<CompletedTaskListRes.TaskSummary> summaries = completedTasks.stream()
-                .map(task -> new CompletedTaskListRes.TaskSummary(
-                        task.getId(),
-                        task.getName(),
-                        task.getContent(),
-                        task.getStartDate(),
-                        task.getDueDate(),
-                        task.getStatus().name(),
-                        assigneeMap.getOrDefault(task.getId(), Collections.emptyList())
-                )).toList();
+                .map(task -> {
+                    List<TaskAssignee> assignees = taskAssigneeRepository.findAllByTaskId(task.getId());
+
+                    List<CompletedTaskListRes.AssigneeInfo> assigneeInfos = assignees.stream()
+                            .map(a -> new CompletedTaskListRes.AssigneeInfo(
+                                    a.getProjectMember().getMember().getId(),
+                                    a.getProjectMember().getMember().getName()
+                            )).toList();
+
+                    boolean isMine = assignees.stream()
+                            .anyMatch(a -> a.getProjectMember().getMember().getId().equals(currentMemberId));
+
+                    return new CompletedTaskListRes.TaskSummary(
+                            task.getId(),
+                            task.getName(),
+                            task.getContent(),
+                            task.getStatus().name(),
+                            task.getStartDate(),
+                            task.getDueDate(),
+                            assigneeInfos,
+                            isMine
+                    );
+                }).toList();
 
         return new CompletedTaskListRes(summaries);
     }

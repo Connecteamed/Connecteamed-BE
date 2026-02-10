@@ -125,9 +125,8 @@ class CompletedTaskServiceTest {
             given(mockProject.getId()).willReturn(projectId);
 
             Task task = spy(Task.builder()
-                    .id(taskId)
-                    .project(mockProject)
-                    .status(TaskStatus.DONE)
+                    .id(taskId).project(mockProject).name("원본").content("내용")
+                    .status(TaskStatus.DONE).startDate(Instant.now()).dueDate(Instant.now())
                     .build());
             Member member = mock(Member.class);
             given(member.getId()).willReturn(memberId);
@@ -135,8 +134,7 @@ class CompletedTaskServiceTest {
             TaskAssignee myAssignee = mock(TaskAssignee.class, RETURNS_DEEP_STUBS);
 
             given(myAssignee.getProjectMember().getMember().getId()).willReturn(memberId);
-            given(taskAssigneeRepository.findAllByTaskId(taskId))
-                    .willReturn(List.of(myAssignee));
+            given(taskAssigneeRepository.findAllByTaskId(taskId)).willReturn(List.of(myAssignee));
 
             mockedSecurityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn(loginId);
             given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
@@ -147,21 +145,26 @@ class CompletedTaskServiceTest {
                     .willReturn(Optional.of(mockProjectMember));
 
             TaskNote mockNote = mock(TaskNote.class);
+            given(mockNote.getContent()).willReturn("수정된 회고록");
             given(taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, memberId))
                     .willReturn(Optional.of(mockNote));
 
             // when
-            completedTaskService.updateCompletedTask(taskId, req);
+            CompletedTaskDetailRes result = completedTaskService.updateCompletedTask(taskId, req);
 
             // then
             verify(task).updateInfo(eq(req.title()), eq(req.contents()), any(Instant.class), any(Instant.class));
-
             verify(task).updateStatus(TaskStatus.DONE);
             verify(taskAssigneeRepository, times(1)).deleteAllByTask(task);
             verify(taskAssigneeRepository, times(1)).saveAll(anyList());
             verify(mockNote).updateContent(req.noteContent());
+
             verify(contributionService).recordContribution(eq(memberId), any());
             verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_MODIFIED));
+
+            assertThat(result).isNotNull();
+            assertThat(result.taskId()).isEqualTo(taskId);
+            assertThat(result.noteContent()).isEqualTo("수정된 회고록");
         }
     }
 
