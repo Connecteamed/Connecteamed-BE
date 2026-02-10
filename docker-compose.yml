@@ -14,7 +14,7 @@ services:
       
       # --- Redis 연결 설정 (추가됨) ---
       # Docker 내부 네트워크에서는 서비스 이름('redis')이 호스트 주소가 됩니다.
-      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=my-redis
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD}
       
