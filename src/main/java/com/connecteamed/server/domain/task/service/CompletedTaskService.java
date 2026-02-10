@@ -7,6 +7,7 @@ import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
 import com.connecteamed.server.domain.notification.service.NotificationHelper;
+import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.task.dto.CompletedTaskDetailRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskListRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskUpdateReq;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,7 @@ public class CompletedTaskService {
     private final NotificationCommandService  notificationCommandService;
     private final ContributionService contributionService;
     private final NotificationHelper notificationHelper;
+    private final ProjectMemberRepository projectMemberRepository;
 
     // 완료한 업무 목록 조회
     public CompletedTaskListRes getCompletedTasks(Long projectId) {
@@ -148,7 +151,26 @@ public class CompletedTaskService {
                 .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
                 .findFirst()
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
-        task.updateInfo(req.name(), req.content());
+
+        Instant start = Instant.parse(req.startDate().replace(".", "-") + "T00:00:00Z");
+        Instant end = Instant.parse(req.endDate().replace(".", "-") + "T23:59:59Z");
+
+        task.updateInfo(req.title(), req.contents(), start, end);
+        task.updateStatus(TaskStatus.valueOf(req.status()));
+
+        taskAssigneeRepository.deleteAllByTask(task);
+        List<TaskAssignee> newAssignees = req.assigneeIds().stream()
+                .map(memberId -> {
+                    var projectMember = projectMemberRepository.findByProject_IdAndMember_Id(task.getProject().getId(), memberId)
+                            .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "프로젝트에 속하지 않은 멤버(ID: " + memberId + ")를 담당자로 지정할 수 없습니다."));
+
+                    return TaskAssignee.builder()
+                            .task(task)
+                            .projectMember(projectMember)
+                            .build();
+                }).toList();
+
+        taskAssigneeRepository.saveAll(newAssignees);
 
         TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
                 .orElseGet(() -> createNewNote(task, currentMemberId));

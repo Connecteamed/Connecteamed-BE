@@ -8,6 +8,9 @@ import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
 import com.connecteamed.server.domain.notification.service.NotificationHelper;
+import com.connecteamed.server.domain.project.entity.Project;
+import com.connecteamed.server.domain.project.entity.ProjectMember;
+import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.task.dto.CompletedTaskDetailRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskUpdateReq;
 import com.connecteamed.server.domain.task.entity.Task;
@@ -34,6 +37,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +66,10 @@ class CompletedTaskServiceTest {
 
     @Mock
     private NotificationHelper notificationHelper;
+
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
 
     @Test
     @DisplayName("완료 업무 상태 변경 시 잔디 기록 및 재시작 알림 발송 검증")
@@ -100,9 +108,27 @@ class CompletedTaskServiceTest {
             // given
             Long taskId = 1L;
             Long memberId = 10L;
+            Long projectId = 100L;
             String loginId = "testUser";
 
-            Task task = Task.builder().id(taskId).status(TaskStatus.DONE).build();
+            CompletedTaskUpdateReq req = new CompletedTaskUpdateReq(
+                    "와이어프레임 제작 (수정)",
+                    "DONE",
+                    List.of(memberId),
+                    "2025.11.13",
+                    "2025.11.25",
+                    "수정된 내용입니다.",
+                    "API 속도 이슈 해결함."
+            );
+
+            Project mockProject = mock(Project.class);
+            given(mockProject.getId()).willReturn(projectId);
+
+            Task task = spy(Task.builder()
+                    .id(taskId)
+                    .project(mockProject)
+                    .status(TaskStatus.DONE)
+                    .build());
             Member member = mock(Member.class);
             given(member.getId()).willReturn(memberId);
 
@@ -116,12 +142,26 @@ class CompletedTaskServiceTest {
             given(memberRepository.findByLoginId(loginId)).willReturn(Optional.of(member));
             given(taskRepository.findById(taskId)).willReturn(Optional.of(task));
 
+            ProjectMember mockProjectMember = mock(ProjectMember.class);
+            given(projectMemberRepository.findByProject_IdAndMember_Id(projectId, memberId))
+                    .willReturn(Optional.of(mockProjectMember));
+
+            TaskNote mockNote = mock(TaskNote.class);
+            given(taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, memberId))
+                    .willReturn(Optional.of(mockNote));
+
             // when
-            completedTaskService.updateCompletedTaskStatus(taskId, TaskStatus.IN_PROGRESS);
+            completedTaskService.updateCompletedTask(taskId, req);
 
             // then
+            verify(task).updateInfo(eq(req.title()), eq(req.contents()), any(Instant.class), any(Instant.class));
+
+            verify(task).updateStatus(TaskStatus.DONE);
+            verify(taskAssigneeRepository, times(1)).deleteAllByTask(task);
+            verify(taskAssigneeRepository, times(1)).saveAll(anyList());
+            verify(mockNote).updateContent(req.noteContent());
             verify(contributionService).recordContribution(eq(memberId), any());
-            verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_RESTARTED));
+            verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_MODIFIED));
         }
     }
 

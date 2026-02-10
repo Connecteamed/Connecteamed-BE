@@ -94,7 +94,7 @@ class CompletedTaskControllerTest {
     @Test
     @DisplayName("PATCH /api/tasks/{taskId} 는 수정 성공 시 200을 반환한다")
     void updateCompletedTask_ok() throws Exception {
-        CompletedTaskUpdateReq req = new CompletedTaskUpdateReq("수정 제목", "수정 내용", "회고 내용");
+        CompletedTaskUpdateReq req = new CompletedTaskUpdateReq("수정 제목", "DONE", List.of(1L, 2L), "2025.02.10", "2025.02.11", "수정 내용",  "회고 내용");
         String content = objectMapper.writeValueAsString(req);
 
         mockMvc.perform(patch("/api/tasks/{taskId}", 1L)
