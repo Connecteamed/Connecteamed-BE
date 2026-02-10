@@ -141,7 +141,7 @@ public class CompletedTaskService {
 
     // 완료한 업무 상세 수정
     @Transactional
-    public void updateCompletedTask(Long taskId, CompletedTaskUpdateReq req) {
+    public CompletedTaskDetailRes updateCompletedTask(Long taskId, CompletedTaskUpdateReq req) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
@@ -181,6 +181,8 @@ public class CompletedTaskService {
 
         // 완료한 업무 정보 수정 시 알림 발송
         notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
+
+        return getCompletedTaskDetail(taskId);
 
     }
 
