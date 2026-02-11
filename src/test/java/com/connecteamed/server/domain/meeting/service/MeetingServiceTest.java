@@ -97,7 +97,7 @@ class MeetingServiceTest {
         // then
         then(meetingRepository).should().save(any(Meeting.class));
         assertThat(res.meetingId()).isEqualTo(100L);
-        verify(contributionService).recordContribution(eq(userId), any(ContributionReq.class));
+        verify(contributionService).recordContribution(eq(userId), eq(projectId), any(ContributionReq.class));
     }
 
     @Test
@@ -130,7 +130,7 @@ class MeetingServiceTest {
 
         // then
         assertThat(existingMeeting.getTitle()).isEqualTo("수정 제목");
-        verify(contributionService).recordContribution(eq(userId), any(ContributionReq.class));
+        verify(contributionService).recordContribution(eq(userId), eq(projectId), any(ContributionReq.class));
     }
 
     @Test
@@ -187,7 +187,7 @@ class MeetingServiceTest {
                 .isInstanceOf(GeneralException.class)
                 .hasFieldOrPropertyWithValue("code", GeneralErrorCode.NOT_FOUND);
 
-        verify(contributionService, never()).recordContribution(any(), any());
+        verify(contributionService, never()).recordContribution(any(), any(), any());
     }
 
     @Test

@@ -63,7 +63,7 @@ class ProjectContributionServiceTest {
         when(projectRepository.existsById(projectId)).thenReturn(true);
         when(projectMemberRepository.findAllByProjectId(projectId)).thenReturn(List.of(pm));
 
-        when(contributionRepository.findAllByUserIdInAndCreatedAtBetween(any(), any(), any()))
+        when(contributionRepository.findAllByProjectIdAndUserIdInAndCreatedAtBetween(any(),any(), any(), any()))
                 .thenReturn(Collections.emptyList());
 
         List<ProjectMemberContributionRes> result = projectContributionService.getProjectMemberContributions(projectId);

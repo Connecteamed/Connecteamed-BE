@@ -84,6 +84,7 @@ class DocumentServiceImplTest {
         // ContributionService가 DOCUMENT_CREATE 타입으로 호출되었는가?
         verify(contributionService, times(1)).recordContribution(
                 eq(memberId),
+                eq(projectId),
                 argThat(req -> req.actionType() == ContributionAction.DOCUMENT_CREATE
                         && req.targetId().equals(savedDocumentId))
         );
@@ -101,7 +102,7 @@ class DocumentServiceImplTest {
 
         then(s3StorageService).shouldHaveNoInteractions();
         then(documentRepository).shouldHaveNoInteractions();
-        verify(contributionService, never()).recordContribution(any(), any());
+        verify(contributionService, never()).recordContribution(any(),any(), any());
     }
 
     @Test
@@ -145,7 +146,7 @@ class DocumentServiceImplTest {
 
         then(s3StorageService).shouldHaveNoInteractions();
 
-        verify(contributionService, never()).recordContribution(any(), any());
+        verify(contributionService, never()).recordContribution(any(), any(), any());
     }
 
     @Test
@@ -207,7 +208,7 @@ class DocumentServiceImplTest {
         documentService.updateText(documentId, req);
 
         then(d).should().updateText("수정제목", "수정내용");
-        verify(contributionService).recordContribution(eq(memberId), any());
+        verify(contributionService).recordContribution(eq(memberId), any(), any());
     }
 
     @Test

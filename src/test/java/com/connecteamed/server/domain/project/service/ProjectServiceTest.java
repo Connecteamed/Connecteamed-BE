@@ -158,7 +158,7 @@ class ProjectServiceTest {
         verify(projectRequiredRoleRepository, times(3)).save(any(ProjectRequiredRole.class));
 
         ArgumentCaptor<ContributionReq> contribCaptor = ArgumentCaptor.forClass(ContributionReq.class);
-        verify(contributionService).recordContribution(eq(testMember.getId()), contribCaptor.capture());
+        verify(contributionService).recordContribution(eq(testMember.getId()), eq(testProject.getId()), contribCaptor.capture());
 
         assertThat(contribCaptor.getValue().actionType()).isEqualTo(ContributionAction.PROJECT_CREATE);
         assertThat(contribCaptor.getValue().targetId()).isEqualTo(testProject.getId());
@@ -310,7 +310,7 @@ class ProjectServiceTest {
         assertEquals(1L, response.getProjectId());
         verify(projectRequiredRoleRepository, times(1)).deleteAll(any());
         verify(projectRequiredRoleRepository, times(2)).save(any(ProjectRequiredRole.class));
-        verify(contributionService).recordContribution(eq(testMember.getId()),
+        verify(contributionService).recordContribution(eq(testMember.getId()), eq(1L),
                 argThat(c -> c.actionType() == ContributionAction.PROJECT_UPDATE));
     }
 

@@ -111,7 +111,7 @@ public class CompletedTaskService {
         TaskStatus oldStatus = task.getStatus();
         task.updateStatus(taskStatus);
 
-        contributionService.recordContribution(currentMemberId,
+        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         // 완료한 업무 상태 변경 시 알림 발송
@@ -195,7 +195,7 @@ public class CompletedTaskService {
                 .orElseGet(() -> createNewNote(task, currentMemberId));
         note.updateContent(req.noteContent());
 
-        contributionService.recordContribution(currentMemberId,
+        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         // 완료한 업무 정보 수정 시 알림 발송
