@@ -14,10 +14,67 @@ Connecteamed는 복잡한 설정 과정을 최소화하여 누구나 쉽게 팀 
 
 ## 🛠️ Tech Stacks
 
+<img src="https://img.shields.io/badge/Java_17-007396?style=for-the-badge&logo=java&logoColor=white" />
+<img src="https://img.shields.io/badge/Spring_Boot_3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" />
+<img src="https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white" />
+<img src="https://img.shields.io/badge/Spring_Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white" />
+<img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
+<img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
+<img src="https://img.shields.io/badge/Hibernate-59666C?style=for-the-badge&logo=hibernate&logoColor=white" />
+<img src="https://img.shields.io/badge/QueryDSL-07ADEE?style=for-the-badge&logo=querydsl&logoColor=white" />
+<img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" />
+<img src="https://img.shields.io/badge/AWS_Lightsail-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" />
+<img src="https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white" />
+<img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" />
+<img src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white" />
+<img src="https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=jsonwebtokens&logoColor=white" />
+<img src="https://img.shields.io/badge/OAuth2-EB5424?style=for-the-badge&logo=auth0&logoColor=white" />
+<img src="https://img.shields.io/badge/JUnit5-25A162?style=for-the-badge&logo=junit5&logoColor=white" />
 
+## 📁 Project Structure
 
+```text
+Connected-BE/
+├── src/
+│   ├── main/
+│   │   ├── java/com/connecteamed/server/
+│   │   │   ├── domain/             # 도메인별 비즈니스 로직
+│   │   │   │   ├── collaboration/  # 협업 관리
+│   │   │   │   ├── contribution/   # 기여도 측정 및 관리
+│   │   │   │   ├── dashboard/      # 대시보드
+│   │   │   │   ├── document/       # 공유 문서 관리
+│   │   │   │   ├── invite/         # 팀/프로젝트 초대
+│   │   │   │   ├── meeting/        # 회의록 관리
+│   │   │   │   ├── member/         # 사용자 계정 관리
+│   │   │   │   ├── mypage/         # 마이페이지 및 개인 설정
+│   │   │   │   ├── notification/   # 알림 서비스
+│   │   │   │   ├── project/        # 프로젝트 생성 및 관리
+│   │   │   │   ├── retrospective/  # 프로젝트 회고 관리
+│   │   │   │   ├── task/           # 업무 관리
+│   │   │   │   ├── team/           # 팀 구성 및 관리
+│   │   │   │   └── token/          # JWT/Refresh 토큰 처리
+│   │   │   ├── global/             # 전역 설정 및 공통 모듈
+│   │   │   │   ├── apiPayload/     # 공통 응답(Success/Error) 규격
+│   │   │   │   ├── auth/           # 보안 인증/인가 로직
+│   │   │   │   ├── config/         # 프레임워크 및 인프라 설정
+│   │   │   │   ├── entity/         # 공통 엔티티(BaseTime 등)
+│   │   │   │   └── util/           # 범용 유틸리티 함수
+│   │   │   └── ConnecteamedApplication.java
+│   │   └── resources/
+│   │       ├── prompts/            # AI 모델용 프롬프트 관리
+│   │       ├── static/             # 테스트용 정적 리소스(HTML)
+│   │       └── application.yaml    # 시스템 환경 설정
+│   └── test/                       # 테스트 코드 유닛 및 통합 테스트
+└── build.gradle                    # 빌드 스크립트 및 의존성 관리
+```
 
-## 📢 Connected-BE API Server - Convention & Structure
+## ⚙️ Server Architecture
+
+<div align="center"> <img src="img.png" alt="Server Architecture" width="85%"> </div>
+
+## 📢 Convention
+
+본 프로젝트는 아래의 Git 및 협업 규칙을 따릅니다.
 
 ## Git 규칙 (Commit Convention)
 
@@ -86,7 +143,7 @@ Git Flow 전략을 기반으로 운영합니다.
 - `[Refactor] 대상` : 리팩토링
 - `[Chore] 작업명` : 기타 설정
 
-### 3-2. 이슈 본문 템플릿 (예시)
+### 3-2. 이슈 본문 템플릿
 
 ```
 ## 💡 개요
@@ -101,33 +158,10 @@ Git Flow 전략을 기반으로 운영합니다.
 - (Jira 티켓, 디자인 시안, 관련 링크 등)
 
 ```
----
-
-## 4. 프로젝트 구조 (Project Structure)
-
-도메인 주도 설계(Domain-Driven Design) 방식에 따라 기능별로 패키지를 분리합니다.
-
-```
-src/main/java/com/realtalk/api
-├── global                  # [전역] 프로젝트 공통 설정 및 유틸
-│   ├── config              # Security, WebSocket, CORS 설정
-│   ├── error               # Global Exception Handler
-│   ├── common              # 공통 Response, Utils
-│   └── jwt                 # JWT 인증 필터 및 프로바이더
-│
-├── domain                  # [도메인] 핵심 비즈니스 로직
-│   ├── member              # 회원 도메인 (Controller, Service, Repository, Entity, Dto)
-│   ├── chat                # 채팅 도메인
-│   ├── chatroom            # 채팅방 도메인
-│   └── notification        # 알림 도메인
-│
-└── ApiApplication.java
-```
-
 
 ---
 
-## 5. PR(Pull Request) 규칙
+## 4. PR(Pull Request) 규칙
 
 - **제목:** `[Feat] 카카오 로그인 기능 구현 (#이슈번호)`
 - **내용:**
