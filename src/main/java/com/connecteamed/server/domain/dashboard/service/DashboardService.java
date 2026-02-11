@@ -56,8 +56,18 @@ public class DashboardService {
     }
 
     public UpcomingTaskListRes getUpcomingTasks(String userId) {
+        Instant now = Instant.now();
+        Instant oneWeekLater = now.plus(java.time.Duration.ofDays(7));
+
         List<TaskStatus> targetStatuses = List.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS);
-        List<Task> tasks = taskRepository.findUpcomingTasksByUserId(userId, targetStatuses);
+
+        List<Task> tasks = taskRepository.findUpcomingTasksByUserId(
+                userId,
+                targetStatuses,
+                now,
+                oneWeekLater
+        );
+
         List<UpcomingTaskListRes.UpcomingTaskRes> taskResList = tasks.stream()
                 .map(task -> new UpcomingTaskListRes.UpcomingTaskRes(
                         task.getId(),

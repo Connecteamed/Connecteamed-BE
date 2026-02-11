@@ -8,11 +8,17 @@ public record CompletedTaskListRes(
 ) {
     public record TaskSummary(
             Long taskId,
-            String name,
-            String content,
-            Instant startDate,
-            Instant dueDate,
+            String title,
+            String contents,
             String status,
-            List<String> assigneeNames
+            Instant startDate,
+            Instant endDate,
+            List<AssigneeInfo> assignees,
+            boolean isMine
+    ) {}
+
+    public record AssigneeInfo(
+            Long id,
+            String nickname
     ) {}
 }

@@ -86,8 +86,8 @@ public class NotificationServiceTest {
 
         // 상세 필드 검증
         var res = result.notifications().get(0);
-        assertThat(res.title()).isEqualTo("테스트 프로젝트");
-        assertThat(res.content()).isEqualTo(category.getMessage());
+        assertThat(res.teamName()).isEqualTo("테스트 프로젝트");
+        assertThat(res.message()).isEqualTo(category.getMessage());
         assertThat(res.targetUrl()).isEqualTo("/projects/100/tasks/50");
         assertThat(res.notificationType()).isEqualTo("TASK_TAGGED");
     }

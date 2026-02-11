@@ -75,15 +75,27 @@ public class DashboardServiceTest {
     @Test
     @DisplayName("2. 마감 임박 업무 조회 - name 필드와 Instant 타입이 정확히 매핑된다")
     void getUpcomingTasks_Success() {
+        Instant now = Instant.now();
         Task task = Task.builder()
-                .id(1L).name("마감 업무").status(TaskStatus.TODO).project(testProject)
-                .dueDate(Instant.now()).build();
-        given(taskRepository.findUpcomingTasksByUserId(anyString(), anyList())).willReturn(List.of(task));
+                .id(1L)
+                .name("마감 업무")
+                .status(TaskStatus.TODO)
+                .project(testProject)
+                .dueDate(now.plus(3, ChronoUnit.DAYS))
+                .build();
+
+        given(taskRepository.findUpcomingTasksByUserId(
+                anyString(),
+                anyList(),
+                any(Instant.class),
+                any(Instant.class)
+        )).willReturn(List.of(task));
 
         UpcomingTaskListRes result = dashboardService.getUpcomingTasks(userId);
 
         assertThat(result.tasks()).hasSize(1);
         assertThat(result.tasks().get(0).title()).isEqualTo("마감 업무");
+        assertThat(result.tasks().get(0).endDate()).isNotNull();
     }
 
     @Test

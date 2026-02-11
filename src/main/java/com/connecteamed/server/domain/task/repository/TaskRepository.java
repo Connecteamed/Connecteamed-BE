@@ -26,11 +26,14 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             "JOIN pm.member m " +
             "WHERE m.loginId = :userId " +
             "AND t.status IN :statuses " +
+            "AND t.dueDate BETWEEN :now AND :oneWeekLater " +
             "AND t.deletedAt IS NULL " +
             "ORDER BY t.dueDate ASC")
     List<Task> findUpcomingTasksByUserId(
             @Param("userId") String userId,
-            @Param("statuses") List<TaskStatus> statuses
+            @Param("statuses") List<TaskStatus> statuses,
+            @Param("now") Instant now,
+            @Param("oneWeekLater") Instant oneWeekLater
     );
 
     @Query("SELECT DISTINCT t FROM Task t " +

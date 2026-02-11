@@ -43,11 +43,11 @@ public class CompletedTaskController {
 
     @Operation(summary = "완료한 업무 상세 수정 및 회고 저장", description = "업무 정보 수정 및 회고를 저장합니다.")
     @PatchMapping("/tasks/{taskId}")
-    public ApiResponse<String> updateCompletedTask(
+    public ApiResponse<CompletedTaskDetailRes> updateCompletedTask(
             @PathVariable Long taskId,
             @RequestBody CompletedTaskUpdateReq req) {
-        completedTaskService.updateCompletedTask(taskId, req);
-        return ApiResponse.onSuccess(GeneralSuccessCode._OK, null,"업무 정보 및 회고가 수정되었습니다.");
+        CompletedTaskDetailRes result = completedTaskService.updateCompletedTask(taskId, req);
+        return ApiResponse.onSuccess(GeneralSuccessCode._OK, result);
     }
 
     @Operation(summary = "완료한 업무 삭제", description = "업무를 Soft Delete 합니다.")
