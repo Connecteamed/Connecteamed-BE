@@ -21,6 +21,9 @@ public class Contribution {
     @Column(nullable = false)
     private Long userId;
 
+    @Column(nullable = false)
+    private Long projectId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ContributionAction actionType;
@@ -32,8 +35,9 @@ public class Contribution {
     private Instant createdAt;
 
     @Builder
-    public Contribution(Long userId, ContributionAction actionType, Long targetId) {
+    public Contribution(Long userId, Long projectId, ContributionAction actionType, Long targetId) {
         this.userId = userId;
+        this.projectId = projectId;
         this.actionType = actionType;
         this.targetId = targetId;
         this.createdAt = Instant.now();
