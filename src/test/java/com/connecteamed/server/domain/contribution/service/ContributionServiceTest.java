@@ -33,6 +33,7 @@ public class ContributionServiceTest {
     void recordContribution_success() {
         // given
         Long userId = 1L;
+        Long projectId = 1L;
         ContributionReq request = new ContributionReq(ContributionAction.TASK_CREATE, 100L);
 
         given(contributionRepository.existsByUserIdAndActionTypeAndTargetId(userId, request.actionType(), request.targetId()))
@@ -41,7 +42,7 @@ public class ContributionServiceTest {
                 .willReturn(1);
 
         // when
-        ContributionRes result = contributionService.recordContribution(userId, request);
+        ContributionRes result = contributionService.recordContribution(userId, projectId, request);
 
         // then
         assertThat(result.isIncremented()).isTrue();
@@ -55,6 +56,7 @@ public class ContributionServiceTest {
     void recordContribution_duplicate() {
         // given
         Long userId = 1L;
+        Long projectId = 1L;
         ContributionReq request = new ContributionReq(ContributionAction.TASK_CREATE, 100L);
 
         given(contributionRepository.existsByUserIdAndActionTypeAndTargetId(userId, request.actionType(), request.targetId()))
@@ -63,7 +65,7 @@ public class ContributionServiceTest {
                 .willReturn(5);
 
         // when
-        ContributionRes result = contributionService.recordContribution(userId, request);
+        ContributionRes result = contributionService.recordContribution(userId, projectId, request);
 
         // then
         assertThat(result.isIncremented()).isFalse();
@@ -85,6 +87,7 @@ public class ContributionServiceTest {
 
     private int getLevelFromCount(int count) {
         Long userId = 1L;
+        Long projectId = 1L;
         ContributionReq req = new ContributionReq(ContributionAction.TASK_CREATE, 999L);
 
         lenient().when(contributionRepository.existsByUserIdAndActionTypeAndTargetId(anyLong(), any(), anyLong()))
@@ -92,6 +95,6 @@ public class ContributionServiceTest {
         lenient().when(contributionRepository.countTodayActivities(eq(userId), any(Instant.class), any(Instant.class)))
                 .thenReturn(count);
 
-        return contributionService.recordContribution(userId, req).currentLevel();
+        return contributionService.recordContribution(userId, projectId, req).currentLevel();
     }
 }

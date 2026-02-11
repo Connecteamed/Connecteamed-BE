@@ -134,7 +134,7 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
-        contributionService.recordContribution(owner.getId(),
+        contributionService.recordContribution(owner.getId(), savedProject.getId(),
                 new ContributionReq(ContributionAction.PROJECT_CREATE, savedProject.getId()));
 
         // 4. 응답 반환
@@ -231,7 +231,7 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(getCurrentUserId(), projectId,
                 new ContributionReq(ContributionAction.PROJECT_UPDATE, project.getId()));
 
         // 6. 응답 반환

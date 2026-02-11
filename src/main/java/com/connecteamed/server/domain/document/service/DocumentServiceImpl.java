@@ -145,7 +145,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document d = Document.createText(projectRef, projectMember, req.title());
         documentRepository.save(d);
 
-        contributionService.recordContribution(projectMember.getMember().getId(),
+        contributionService.recordContribution(projectMember.getMember().getId(), projectId,
                 new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
 
         return new DocumentCreateRes(d.getId(), d.getCreatedAt().toString());
@@ -172,7 +172,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document d = Document.createFile(projectRef, projectMember, title, type, fileUrl);
         documentRepository.save(d);
 
-        contributionService.recordContribution(projectMember.getMember().getId(),
+        contributionService.recordContribution(projectMember.getMember().getId(), projectId,
                 new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
 
         return new DocumentUploadRes(d.getId(), title, d.getCreatedAt().toString());
@@ -191,7 +191,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         d.updateText(req.title(), req.content());
 
-        contributionService.recordContribution(d.getProjectMember().getMember().getId(),
+        contributionService.recordContribution(d.getProjectMember().getMember().getId(), d.getProject().getId(),
                 new ContributionReq(ContributionAction.DOCUMENT_UPDATE, d.getId()));
     }
 

@@ -116,7 +116,7 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                 );
             }
         }
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(getCurrentUserId(), projectId,
                 new ContributionReq(ContributionAction.PROJECT_UPDATE, projectMemberId));
 
         return toRes(pm);

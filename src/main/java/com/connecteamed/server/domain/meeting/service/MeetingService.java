@@ -78,7 +78,7 @@ public class MeetingService {
         Meeting savedMeeting = meetingRepository.save(meeting);
 
         Long userId = securityUtil.getCurrentMemberId();
-        contributionService.recordContribution(userId,
+        contributionService.recordContribution(userId, projectId,
                 new ContributionReq(ContributionAction.MEETING_CREATE, savedMeeting.getId()));
 
         return new MeetingCreateRes(savedMeeting.getId(), savedMeeting.getCreatedAt());
@@ -135,7 +135,7 @@ public class MeetingService {
             });
         }
 
-        contributionService.recordContribution(userId,
+        contributionService.recordContribution(userId, meeting.getProject().getId(),
                 new ContributionReq(ContributionAction.MEETING_UPDATE, meeting.getId()));
         return getMeeting(meetingId);
     }
