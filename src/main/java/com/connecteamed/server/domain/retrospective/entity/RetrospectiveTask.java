@@ -29,6 +29,9 @@ public class RetrospectiveTask extends BaseEntity {
     @JoinColumn(name = "task_id", nullable = false)
     private Task task;
 
+    @Column(name = "deleted_at")
+    private java.time.Instant deletedAt;
+
     public void setAiRetrospective(AiRetrospective aiRetrospective) {
         this.aiRetrospective = aiRetrospective;
     }
