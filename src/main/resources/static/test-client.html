@@ -115,7 +115,7 @@
   let onYDocUpdate = null;
 
 
-  const API_BASE = 'http://localhost:8080/api';
+  const API_BASE = 'https://api.connecteamed.shop/api';
 
   const quill = new Quill('#editor-container', {
     theme: 'snow',
@@ -331,7 +331,7 @@
 
     quillBinding = new QuillBinding(ytext, quill);
 
-    const wsUrl = `ws://localhost:8080/ws/docs/${docId}?token=${encodeURIComponent(token)}`;
+    const wsUrl = `wss://api.connecteamed.shop/ws/docs/${docId}?token=${encodeURIComponent(token)}`;
     log('Connecting...', 'sys');
     ws = new WebSocket(wsUrl);
 
