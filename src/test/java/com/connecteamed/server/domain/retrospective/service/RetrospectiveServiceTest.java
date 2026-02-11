@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -80,7 +81,7 @@ public class RetrospectiveServiceTest {
 
         given(project.getProjectMembers()).willReturn(List.of(writer));
         given(writer.getId()).willReturn(memberId);
-        given(writer.getRoles()).willReturn(List.of());
+        given(writer.getRoles()).willReturn(Set.of());
 
         given(projectRepository.findByIdWithDetails(projectId)).willReturn(Optional.of(project));
         given(projectMemberRepository.findById(memberId)).willReturn(Optional.of(writer));
