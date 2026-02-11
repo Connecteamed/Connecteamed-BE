@@ -72,6 +72,7 @@ public class DashboardService {
                 .map(task -> new UpcomingTaskListRes.UpcomingTaskRes(
                         task.getId(),
                         task.getName(),
+                        task.getStatus(),
                         task.getProject().getName(),
                         task.getDueDate()
                 ))

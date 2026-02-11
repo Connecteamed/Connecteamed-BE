@@ -52,9 +52,9 @@ public class NotificationService {
     private NotificationRes convertToResponse(Notification notification) {
         return NotificationRes.builder()
                 .id(notification.getId())
-                .notificationType(notification.getNotificationType().getTypeKey())
-                .teamName(notification.getProject().getName())
-                .message(notification.getNotificationType().getMessage())
+                .notificationType(notification.getCategory().name())
+                .title(notification.getProject().getName())
+                .content(notification.getContent())
                 .createdAt(calculateTimeAgo(notification.getCreatedAt()))
                 .isRead(notification.isRead())
                 .targetUrl(notification.getTargetUrl())

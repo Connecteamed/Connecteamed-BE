@@ -49,7 +49,7 @@ public class NotificationHelper {
     private void send(TaskAssignee ta, Task task, NotificationCategory category) {
         Member receiver = ta.getProjectMember().getMember();
         if (receiver != null) {
-            notificationCommandService.send(receiver, null, task.getProject(), task.getId(), category.name());
+            notificationCommandService.send(receiver.getId(), null, task.getProject().getId(), task.getId(), category.name());
         }
     }
 
@@ -61,11 +61,26 @@ public class NotificationHelper {
 
         for (ProjectMember pm : members) {
             notificationCommandService.send(
-                    pm.getMember(),
+                    pm.getMember().getId(),
                     null,
-                    project,
+                    project.getId(),
                     null,
                     category.name()
+            );
+        }
+    }
+
+    /**
+     * 특정 멤버(새로 추가된 담당자)에게 태그 알림 발송
+     */
+    public void sendTaskTaggedNotification(Member receiver, Task task) {
+        if (receiver != null) {
+            notificationCommandService.send(
+                    receiver.getId(),
+                    null,
+                    task.getProject().getId(),
+                    task.getId(),
+                    NotificationCategory.TASK_TAGGED.name()
             );
         }
     }

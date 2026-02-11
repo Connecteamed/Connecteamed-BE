@@ -190,6 +190,7 @@ public class TaskServiceImpl implements TaskService {
         validateProjectAccess(projectId, getCurrentUserId());
 
         taskAssigneeRepository.deleteAllByTask(task);
+        taskAssigneeRepository.flush();
 
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
