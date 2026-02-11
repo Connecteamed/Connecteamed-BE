@@ -97,7 +97,7 @@ class CompletedTaskServiceTest {
             completedTaskService.updateCompletedTaskStatus(taskId, TaskStatus.IN_PROGRESS);
 
             // then
-            verify(contributionService).recordContribution(eq(memberId), any());
+            verify(contributionService).recordContribution(eq(memberId),any(), any());
             verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_RESTARTED));
         }
     }
@@ -159,7 +159,7 @@ class CompletedTaskServiceTest {
             verify(taskAssigneeRepository, times(1)).saveAll(anyList());
             verify(mockNote).updateContent(req.noteContent());
 
-            verify(contributionService).recordContribution(eq(memberId), any());
+            verify(contributionService).recordContribution(eq(memberId),any(), any());
             verify(notificationHelper, times(1)).sendToOthers(eq(task), eq(NotificationCategory.TASK_MODIFIED));
 
             assertThat(result).isNotNull();
@@ -205,7 +205,7 @@ class CompletedTaskServiceTest {
         // then
         assertThat(result.noteContent()).isEqualTo("나의 회고록");
         verify(taskNoteRepository, times(1)).findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, memberId);
-        verify(contributionService, never()).recordContribution(any(), any());
+        verify(contributionService, never()).recordContribution(any(), any(), any());
     }
 
     @Test

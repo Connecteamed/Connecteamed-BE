@@ -96,7 +96,7 @@ public class RetrospectiveServiceTest {
         verify(aiRetrospectiveRepository, times(1)).save(any());
 
         ArgumentCaptor<ContributionReq> contribCaptor = ArgumentCaptor.forClass(ContributionReq.class);
-        verify(contributionService).recordContribution(eq(realMemberId), contribCaptor.capture());
+        verify(contributionService).recordContribution(eq(realMemberId), eq(projectId), contribCaptor.capture());
         assertThat(contribCaptor.getValue().actionType()).isEqualTo(ContributionAction.RETROSPECTIVE_CREATE);
         assertThat(contribCaptor.getValue().targetId()).isEqualTo(mockRetrospectiveId);
 
@@ -129,7 +129,7 @@ public class RetrospectiveServiceTest {
 
         // then
         verify(retrospective).update(anyString(), anyString());
-        verify(contributionService).recordContribution(eq(memberId), argThat(c ->
+        verify(contributionService).recordContribution(eq(memberId), eq(projectId), argThat(c ->
                 c.actionType() == ContributionAction.RETROSPECTIVE_UPDATE &&
                         retrospectiveId.equals(c.targetId())
         ));
