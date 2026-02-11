@@ -100,6 +100,8 @@ public class CollabSocketController extends TextWebSocketHandler {
         msg.setUserId(session.getId());
         String docId = (String) session.getAttributes().get("docId");
 
+        msg.setDocId(docId);
+
         // [핵심] JOIN 메시지가 오면 그때 DB+Redis 데이터를 순서대로 줍니다.
         if ("JOIN".equals(msg.getType())) {
             processJoin(session, docId);
@@ -109,12 +111,18 @@ public class CollabSocketController extends TextWebSocketHandler {
         if ("UPDATE".equals(msg.getType())) {
             saveUpdateToRedis(docId, msg.getPayload());
             redisTemplate.convertAndSend("doc-channel", msg);
+            return;
         }
 
         // if ("SAVE_SNAPSHOT".equals(msg.getType())) {
         //     // Service에게 위임
         //     collabService.savePlainTextSnapshot(docId, msg.getPayload());
         // }
+
+        // ★ [추가] 커서 위치(Awareness) 정보 중계
+        if ("AWARENESS".equals(msg.getType())) {
+            redisTemplate.convertAndSend("doc-channel", msg);
+        }
 
         // ★ [수정됨] 스냅샷 저장 로직 (Text + Yjs압축 둘 다 Redis에 임시 저장)
         if ("SAVE_SNAPSHOT".equals(msg.getType())) {
