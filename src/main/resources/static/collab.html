@@ -162,7 +162,7 @@
 
         // 5. 웹소켓 연결 시작
         // (보안 설정 때문에 JWT 토큰을 쿼리 파라미터나 헤더로 넘겨야 할 수도 있음)
-        const wsUrl = `ws://localhost:8080/ws/docs/${docId}`;
+        const wsUrl = `wss://api.connecteamed.shop/ws/docs/${docId}`;
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {

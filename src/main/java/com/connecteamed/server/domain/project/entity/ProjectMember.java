@@ -9,7 +9,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Builder
@@ -40,11 +42,11 @@ public class ProjectMember extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "projectMember", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProjectMemberRole> roles = new ArrayList<>();
+    private Set<ProjectMemberRole> roles = new LinkedHashSet<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "projectMember")
-    private List<TaskAssignee> taskAssignees = new ArrayList<>();
+    private Set<TaskAssignee> taskAssignees = new LinkedHashSet<>();
 
     public List<Task> getTasks() {
         return this.taskAssignees.stream()

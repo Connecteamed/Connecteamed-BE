@@ -24,6 +24,9 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     @EntityGraph(attributePaths = {"project", "roles", "roles.role"})
     List<ProjectMember> findAllByMember(Member member);
 
+    @EntityGraph(attributePaths = {"member"})
+    List<ProjectMember> findAllByProject_IdAndMember_IdIn(Long projectId, List<Long> memberIds);
+
     //사용자가 참여중인 프로젝트 목록 조회 위한 query
     @Query("SELECT pm FROM ProjectMember pm " +
             "JOIN FETCH pm.project p " +

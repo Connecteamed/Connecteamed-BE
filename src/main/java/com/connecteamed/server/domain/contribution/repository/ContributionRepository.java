@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface ContributionRepository extends JpaRepository<Contribution, Long> {
@@ -33,4 +34,11 @@ public interface ContributionRepository extends JpaRepository<Contribution, Long
         java.sql.Date getDate();
         Integer getCount();
     }
+
+    // 프로젝트 멤버들의 데이터 전체 조회
+    List<Contribution> findAllByUserIdInAndCreatedAtBetween(
+            List<Long> userIds,
+            Instant start,
+            Instant end
+    );
 }

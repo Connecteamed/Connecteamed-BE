@@ -7,6 +7,8 @@ import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
 import com.connecteamed.server.domain.notification.service.NotificationHelper;
+import com.connecteamed.server.domain.project.entity.ProjectMember;
+import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.task.dto.CompletedTaskDetailRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskListRes;
 import com.connecteamed.server.domain.task.dto.CompletedTaskUpdateReq;
@@ -26,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +46,7 @@ public class CompletedTaskService {
     private final NotificationCommandService  notificationCommandService;
     private final ContributionService contributionService;
     private final NotificationHelper notificationHelper;
+    private final ProjectMemberRepository projectMemberRepository;
 
     // 완료한 업무 목록 조회
     public CompletedTaskListRes getCompletedTasks(Long projectId) {
@@ -55,31 +59,36 @@ public class CompletedTaskService {
             return new CompletedTaskListRes(Collections.emptyList());
         }
 
-        List<Long> taskIds = completedTasks.stream()
-                .map(Task::getId)
-                .toList();
+        Long currentMemberId = getCurrentUserId();
 
-        List<TaskAssignee> allAssignees = taskAssigneeRepository.findAllByTaskIdIn(taskIds);
-
-        Map<Long, List<String>> assigneeMap = allAssignees.stream()
-                .collect(Collectors.groupingBy(
-                        assignee -> assignee.getTask().getId(),
-                        Collectors.mapping(
-                                assignee -> assignee.getProjectMember().getMember().getName(),
-                                Collectors.toList()
-                        )
-                ));
+        List<TaskAssignee> allAssignees = taskAssigneeRepository.findAllByTaskInWithDetails(completedTasks);
+        Map<Long, List<TaskAssignee>> assigneesByTaskId = allAssignees.stream()
+                .collect(Collectors.groupingBy(assignee -> assignee.getTask().getId()));
 
         List<CompletedTaskListRes.TaskSummary> summaries = completedTasks.stream()
-                .map(task -> new CompletedTaskListRes.TaskSummary(
-                        task.getId(),
-                        task.getName(),
-                        task.getContent(),
-                        task.getStartDate(),
-                        task.getDueDate(),
-                        task.getStatus().name(),
-                        assigneeMap.getOrDefault(task.getId(), Collections.emptyList())
-                )).toList();
+                .map(task -> {
+                    List<TaskAssignee> assignees = assigneesByTaskId.getOrDefault(task.getId(), Collections.emptyList());
+
+                    List<CompletedTaskListRes.AssigneeInfo> assigneeInfos = assignees.stream()
+                            .map(a -> new CompletedTaskListRes.AssigneeInfo(
+                                    a.getProjectMember().getMember().getId(),
+                                    a.getProjectMember().getMember().getName()
+                            )).toList();
+
+                    boolean isMine = assignees.stream()
+                            .anyMatch(a -> a.getProjectMember().getMember().getId().equals(currentMemberId));
+
+                    return new CompletedTaskListRes.TaskSummary(
+                            task.getId(),
+                            task.getName(),
+                            task.getContent(),
+                            task.getStatus().name(),
+                            task.getStartDate(),
+                            task.getDueDate(),
+                            assigneeInfos,
+                            isMine
+                    );
+                }).toList();
 
         return new CompletedTaskListRes(summaries);
     }
@@ -116,7 +125,7 @@ public class CompletedTaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
-        List<String> assigneeNames = getAssigneeNames(taskId);
+        List<Long> assigneeIds = getAssigneeIds(taskId);
 
         Long currentMemberId = getCurrentUserId();
 
@@ -127,18 +136,18 @@ public class CompletedTaskService {
         return new CompletedTaskDetailRes(
                 task.getId(),
                 task.getName(),
-                task.getContent(),
+                task.getStatus().name(),
+                assigneeIds,
                 task.getStartDate(),
                 task.getDueDate(),
-                task.getStatus().name(),
-                assigneeNames,
+                task.getContent(),
                 myNote
         );
     }
 
     // 완료한 업무 상세 수정
     @Transactional
-    public void updateCompletedTask(Long taskId, CompletedTaskUpdateReq req) {
+    public CompletedTaskDetailRes updateCompletedTask(Long taskId, CompletedTaskUpdateReq req) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
@@ -148,7 +157,39 @@ public class CompletedTaskService {
                 .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
                 .findFirst()
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
-        task.updateInfo(req.name(), req.content());
+
+        Instant start = Instant.parse(req.startDate().replace(".", "-") + "T00:00:00Z");
+        Instant end = Instant.parse(req.endDate().replace(".", "-") + "T23:59:59Z");
+        task.updateInfo(req.title(), req.contents(), start, end);
+        task.updateStatus(TaskStatus.valueOf(req.status()));
+
+        taskAssigneeRepository.deleteAllByTask(task);
+
+        List<ProjectMember> projectMembers = projectMemberRepository.findAllByProject_IdAndMember_IdIn(
+                task.getProject().getId(),
+                req.assigneeIds()
+        );
+
+        Map<Long, ProjectMember> memberMap = projectMembers.stream()
+                .collect(Collectors.toMap(pm -> pm.getMember().getId(), pm -> pm));
+
+        List<TaskAssignee> newAssignees = req.assigneeIds().stream()
+                .map(memberId -> {
+                    ProjectMember projectMember = memberMap.get(memberId);
+
+                    // 조회 결과에 없는 멤버 ID가 요청된 경우 예외 처리
+                    if (projectMember == null) {
+                        throw new GeneralException(GeneralErrorCode.NOT_FOUND,
+                                "프로젝트에 속하지 않은 멤버(ID: " + memberId + ")를 담당자로 지정할 수 없습니다.");
+                    }
+
+                    return TaskAssignee.builder()
+                            .task(task)
+                            .projectMember(projectMember)
+                            .build();
+                }).toList();
+
+        taskAssigneeRepository.saveAll(newAssignees);
 
         TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
                 .orElseGet(() -> createNewNote(task, currentMemberId));
@@ -160,6 +201,8 @@ public class CompletedTaskService {
         // 완료한 업무 정보 수정 시 알림 발송
         notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
 
+        return getCompletedTaskDetail(taskId);
+
     }
 
     // 완료한 업무 삭제
@@ -170,9 +213,9 @@ public class CompletedTaskService {
         task.softDelete();
     }
 
-    private List<String> getAssigneeNames(Long taskId) {
+    private List<Long> getAssigneeIds(Long taskId) {
         return taskAssigneeRepository.findAllByTaskId(taskId).stream()
-                .map(a -> a.getProjectMember().getMember().getName())
+                .map(a -> a.getProjectMember().getMember().getId())
                 .toList();
     }
 

@@ -61,9 +61,15 @@ public class Task extends BaseEntity {
         this.status = status;
     }
 
-    public void updateInfo(String name, String content) {
-        this.name = name;
-        this.content = content;
+    public void updateInfo(String title, String contents, Instant startDate, Instant endDate) {
+        this.name = title;
+        this.content = contents;
+        this.startDate = startDate;
+        this.dueDate = endDate;
+    }
+
+    public void clearAssignees() {
+        this.assignees.clear();
     }
 
     @PrePersist

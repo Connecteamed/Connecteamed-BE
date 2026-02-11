@@ -10,6 +10,6 @@ public record UpcomingTaskListRes (
             Long id,
             String title,
             String teamName,
-            Instant writtenDate
+            Instant endDate
     ) {}
 }

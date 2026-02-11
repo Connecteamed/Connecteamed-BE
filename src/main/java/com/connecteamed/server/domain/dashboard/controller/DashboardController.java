@@ -45,8 +45,7 @@ public class DashboardController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "회고 목록 조회 성공",
-                    content = @Content(schema = @Schema(implementation = ApiResponse.class))
+                    description = "회고 목록 조회 성공"
             )
     })
     public ApiResponse<DashboardRes.RetrospectiveListRes> getRecentRetrospectives(
@@ -54,20 +53,12 @@ public class DashboardController {
             @Parameter(description = "개발 환경 테스트용 사용자 로그인 ID (예: user@example.com)", example = "writer@example.com")
             @RequestParam(required = false) String username
     ) {
-        // 1. 인증된 사용자의 userId 추출 (JWT 토큰 또는 테스트 환경)
-        String userId = (authentication != null && authentication.isAuthenticated()
-                        && !"anonymousUser".equals(authentication.getName()))
-                        ? authentication.getName()
-                        : username;
 
-        DashboardRes.RetrospectiveListRes response;
-        if (userId != null) {
-            // 특정 사용자의 회고 조회
-            response = dashboardService.getRecentRetrospectives(userId);
-        } else {
-            // 사용자 정보가 없으면 모든 회고 조회
-            response = dashboardService.getRecentRetrospectives();
-        }
+        String userId = getUserId(authentication, username);
+
+        DashboardRes.RetrospectiveListRes response = (userId != null)
+                ? dashboardService.getRecentRetrospectives(userId)
+                : dashboardService.getRecentRetrospectives();
 
         return ApiResponse.onSuccess(
                 GeneralSuccessCode._OK,

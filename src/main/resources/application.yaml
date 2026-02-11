@@ -9,6 +9,8 @@ spring:
       redis:
         host: localhost
         port: 6379
+        password: ${REDIS_PASSWORD}
+
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/connecteamed_db}
@@ -93,3 +95,9 @@ app:
 
 logging:
   exception-conversion-word: "%wEx{0}"
+
+management:
+  endpoints: 
+    web:
+      exposure:
+        include: health
