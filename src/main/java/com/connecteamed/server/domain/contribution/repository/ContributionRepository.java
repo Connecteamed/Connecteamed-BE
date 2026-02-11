@@ -36,9 +36,12 @@ public interface ContributionRepository extends JpaRepository<Contribution, Long
     }
 
     // 프로젝트 멤버들의 데이터 전체 조회
-    List<Contribution> findAllByUserIdInAndCreatedAtBetween(
+    List<Contribution> findAllByProjectIdAndUserIdInAndCreatedAtBetween(
+            Long projectId,
             List<Long> userIds,
             Instant start,
             Instant end
     );
+    //프로젝트 전체 업무 통계 데이터 조회
+    List<Contribution> findAllByProjectIdAndCreatedAtBetween(Long projectId, Instant start, Instant end);
 }
