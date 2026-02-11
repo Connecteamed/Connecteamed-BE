@@ -208,7 +208,7 @@ class DocumentServiceImplTest {
         documentService.updateText(documentId, req);
 
         then(d).should().updateText("수정제목", "수정내용");
-        verify(contributionService).recordContribution(any(), eq(memberId), any());
+        verify(contributionService).recordContribution(eq(memberId), any(), any());
     }
 
     @Test
