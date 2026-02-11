@@ -194,6 +194,8 @@ public class TaskServiceImpl implements TaskService {
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
 
+        taskAssigneeRepository.flush();
+
         contributionService.recordContribution(getCurrentUserId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 

@@ -12,7 +12,7 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    @EntityGraph(attributePaths = {"project", "notificationType"})
+    @EntityGraph(attributePaths = {"project"})
     Page<Notification> findAllByReceiverLoginIdOrderByCreatedAtDesc(String loginId, Pageable pageable);
 
     @Query("SELECT COUNT(n) FROM Notification n WHERE n.receiver.loginId = :loginId AND n.isRead = false")

@@ -6,8 +6,8 @@ import lombok.Builder;
 public record NotificationRes (
         Long id,
         String notificationType,
-        String teamName,
-        String message,
+        String title,
+        String content,
         String createdAt,
         boolean isRead,
         String targetUrl

@@ -1,6 +1,7 @@
 package com.connecteamed.server.domain.notification.entity;
 
 import com.connecteamed.server.domain.member.entity.Member;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -11,7 +12,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Table(name = "notification")
+@Table(name = "notification_new")
 public class Notification extends BaseEntity {
 
     @Id
@@ -30,9 +31,9 @@ public class Notification extends BaseEntity {
     @JoinColumn(name = "project_id", nullable = false) //관련 프로젝트
     private Project project;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "notification_type_id", nullable = false) // 알림 타입
-    private NotificationType notificationType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false)
+    private NotificationCategory category;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content; // 백엔드에서 조립된 최종 메시지
