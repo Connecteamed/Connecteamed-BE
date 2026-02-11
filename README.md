@@ -1,5 +1,22 @@
 # Connected-BE
 
+## 💡 Project Overview
+
+Connecteamed는 복잡한 설정 과정을 최소화하여 누구나 쉽게 팀 프로젝트를 시작할 수 있게 돕고,
+업무 과정에서 쌓인 데이터를 바탕으로 프로젝트의 시작부터 회고까지의 흐름을 관리해주는 팀 협업 관리 플랫폼입니다.
+
+## 👥 Contributors
+
+|                                                           **애나/김민선**                                                           |                                                              **정/김세정**                                                               |                                                               **현/류동현**                                                                |                                                                **막더/박상민**                                                                |
+|:------------------------------------------------------------------------------------------------------------------------------:|:------------------------------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------:|
+| [<img src="https://avatars.githubusercontent.com/u/122611609?v=4" height=150 width=150> <br/> sunnyanna0](https://github.com/sunnyanna0) | [<img src="https://avatars.githubusercontent.com/u/203520708?v=4" height=150 width=150> <br/> sejeong223](https://github.com/sejeong223) | [<img src="https://avatars.githubusercontent.com/u/201970138?v=4" height=150 width=150> <br/> fbehdgus906](https://github.com/fbehdgus906) | [<img src="https://avatars.githubusercontent.com/u/88922405?v=4" height=150 width=150> <br/> sm010422](https://github.com/sm010422) |
+
+
+## 🛠️ Tech Stacks
+
+
+
+
 ## 📢 Connected-BE API Server - Convention & Structure
 
 ## Git 규칙 (Commit Convention)
