@@ -26,7 +26,7 @@ public class ContributionService {
     private final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Transactional
-    public ContributionRes recordContribution(Long userId, ContributionReq request) {
+    public ContributionRes recordContribution(Long userId, Long projectId, ContributionReq request) {
         // 중복 체크
         boolean alreadyExists = contributionRepository.existsByUserIdAndActionTypeAndTargetId(
                 userId, request.actionType(), request.targetId());
@@ -34,6 +34,7 @@ public class ContributionService {
         if (!alreadyExists) {
             contributionRepository.save(Contribution.builder()
                     .userId(userId)
+                    .projectId(projectId)
                     .actionType(request.actionType())
                     .targetId(request.targetId())
                     .build());
