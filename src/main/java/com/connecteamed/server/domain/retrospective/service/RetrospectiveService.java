@@ -97,13 +97,9 @@ public class RetrospectiveService {
     }
 
     // ai 회고 상세 조회
-    public RetrospectiveDetailRes getRetrospectiveDetail(Long projectId, Long retrospectiveId, Long memberId) {
+    public RetrospectiveDetailRes getRetrospectiveDetail(Long projectId, Long retrospectiveId) {
         AiRetrospective retrospective = aiRetrospectiveRepository.findByIdAndProjectId(retrospectiveId, projectId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
-
-        if (!retrospective.getWriter().getMember().getId().equals(memberId)) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
 
         return new RetrospectiveDetailRes(
                 retrospective.getId(),
