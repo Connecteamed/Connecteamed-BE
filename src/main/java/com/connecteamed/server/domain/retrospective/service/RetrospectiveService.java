@@ -90,7 +90,7 @@ public class RetrospectiveService {
                 otherTasks
         );
 
-        contributionService.recordContribution(writer.getMember().getId(),
+        contributionService.recordContribution(writer.getMember().getId(), projectId,
                 new ContributionReq(ContributionAction.RETROSPECTIVE_CREATE, saved.getId()));
 
         return new RetrospectiveCreateRes(saved.getId(), saved.getTitle());
@@ -136,7 +136,7 @@ public class RetrospectiveService {
         }
         retrospective.update(request.title(), request.projectResult());
 
-        contributionService.recordContribution(memberId,
+        contributionService.recordContribution(memberId,projectId,
                 new ContributionReq(ContributionAction.RETROSPECTIVE_UPDATE, retrospective.getId()));
     }
 

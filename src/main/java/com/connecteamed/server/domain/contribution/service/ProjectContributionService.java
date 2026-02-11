@@ -53,7 +53,7 @@ public class ProjectContributionService {
 
         // 모든 멤버의 잔디 기록 한번에 조회
         Map<Long, Map<LocalDate, Long>> allActivityMap = contributionRepository
-                .findAllByUserIdInAndCreatedAtBetween(userIds, startInstant, endInstant).stream()
+                .findAllByProjectIdAndUserIdInAndCreatedAtBetween(projectId,userIds, startInstant, endInstant).stream()
                 .collect(Collectors.groupingBy(
                         Contribution::getUserId,
                         Collectors.groupingBy(
@@ -99,15 +99,11 @@ public class ProjectContributionService {
 
         Instant startInstant = startDate.atStartOfDay(KST).toInstant();
         Instant endInstant = today.plusDays(1).atStartOfDay(KST).toInstant();
-
-        // 프로젝트의 멤버 ID 추출
-        List<Long> userIds = projectMemberRepository.findAllByProjectId(projectId).stream()
-                .map(pm -> pm.getMember().getId())
-                .toList();
+        
 
         // 잔디 기록 합산
         Map<LocalDate, Long> teamActivityMap = contributionRepository
-                .findAllByUserIdInAndCreatedAtBetween(userIds, startInstant, endInstant).stream()
+                .findAllByProjectIdAndCreatedAtBetween(projectId, startInstant, endInstant).stream()
                 .collect(Collectors.groupingBy(
                         c -> c.getCreatedAt().atZone(KST).toLocalDate(),
                         Collectors.counting()

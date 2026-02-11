@@ -74,7 +74,7 @@ public class TaskServiceImpl implements TaskService {
         // 알림: 업무 태그
         notificationHelper.sendToAllAssignees(saved, NotificationCategory.TASK_TAGGED);
 
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(getCurrentUserId(), projectId,
                 new ContributionReq(ContributionAction.TASK_CREATE, saved.getId()));
 
         return saved.getId();
@@ -148,7 +148,7 @@ public class TaskServiceImpl implements TaskService {
         TaskStatus oldStatus = task.getStatus();
         task.changeStatus(req.status());
 
-        contributionService.recordContribution(currentMemberId,
+        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 다시 진행 중 or 완료
@@ -173,7 +173,7 @@ public class TaskServiceImpl implements TaskService {
 
         task.changeSchedule(req.startDate(), req.dueDate());
 
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(getCurrentUserId(), task.getProject().getId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 업무 내용 수정
@@ -194,7 +194,7 @@ public class TaskServiceImpl implements TaskService {
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
 
-        contributionService.recordContribution(getCurrentUserId(),
+        contributionService.recordContribution(getCurrentUserId(), projectId,
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 새로 태그된 사람들에게 알림 발송
