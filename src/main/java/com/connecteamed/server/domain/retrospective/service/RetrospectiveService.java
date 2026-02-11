@@ -41,8 +41,8 @@ public class RetrospectiveService {
         Project project = projectRepository.findByIdWithDetails(projectId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
-        ProjectMember writer = projectMemberRepository.findById(memberId)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+        ProjectMember writer = projectMemberRepository.findByProject_IdAndMember_Id(projectId, memberId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
 
         List<Task> selectedTasks = taskRepository.findAllById(request.taskIds());
 
@@ -97,9 +97,13 @@ public class RetrospectiveService {
     }
 
     // ai 회고 상세 조회
-    public RetrospectiveDetailRes getRetrospectiveDetail(Long projectId, Long retrospectiveId) {
+    public RetrospectiveDetailRes getRetrospectiveDetail(Long projectId, Long retrospectiveId, Long memberId) {
         AiRetrospective retrospective = aiRetrospectiveRepository.findByIdAndProjectId(retrospectiveId, projectId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+
+        if (!retrospective.getWriter().getMember().getId().equals(memberId)) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
 
         return new RetrospectiveDetailRes(
                 retrospective.getId(),
@@ -130,6 +134,9 @@ public class RetrospectiveService {
     public void updateRetrospective(Long memberId, Long projectId, Long retrospectiveId, RetrospectiveUpdateReq request) {
         AiRetrospective retrospective = aiRetrospectiveRepository.findByIdAndProjectId(retrospectiveId, projectId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
+
+        System.out.println("로그인한 유저 ID (memberId): " + memberId);
+        System.out.println("회고 작성자 유저 ID: " + retrospective.getWriter().getMember().getId());
 
         if (!retrospective.getWriter().getMember().getId().equals(memberId)) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);

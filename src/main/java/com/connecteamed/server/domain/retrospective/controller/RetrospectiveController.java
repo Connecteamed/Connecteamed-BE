@@ -46,9 +46,10 @@ public class RetrospectiveController {
     @GetMapping("/{retrospectiveId}")
     public ApiResponse<RetrospectiveDetailRes> getRetrospectiveDetail(
             @PathVariable Long projectId,
-            @PathVariable Long retrospectiveId
+            @PathVariable Long retrospectiveId,
+            @Parameter(hidden = true) @AuthenticationPrincipal CustomUserDetails customUserDetails
     ) {
-        RetrospectiveDetailRes response = retrospectiveService.getRetrospectiveDetail(projectId, retrospectiveId);
+        RetrospectiveDetailRes response = retrospectiveService.getRetrospectiveDetail(customUserDetails.member().getId(), projectId, retrospectiveId);
         return ApiResponse.onSuccess(GeneralSuccessCode._OK, response);
     }
 
