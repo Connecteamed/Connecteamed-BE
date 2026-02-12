@@ -2,6 +2,7 @@ package com.connecteamed.server.domain.invite.service;
 
 import com.connecteamed.server.domain.invite.code.InviteErrorCode;
 import com.connecteamed.server.domain.invite.dto.InviteCodeRes;
+import com.connecteamed.server.domain.invite.dto.ProjectJoinRes;
 import com.connecteamed.server.domain.invite.entity.InviteCode;
 import com.connecteamed.server.domain.invite.repository.InviteCodeRepository;
 import com.connecteamed.server.domain.member.code.MemberErrorCode;
@@ -74,7 +75,7 @@ public class InviteService {
 
     //입장 로직
     @Transactional
-    public void joinProjectByCode(String code, String loginId) {
+    public ProjectJoinRes joinProjectByCode(String code, String loginId) {
 
         InviteCode inviteCode = inviteCodeRepository.findByCodeAndExpiredAtAfter(code, Instant.now())
                 .orElseThrow(() -> new GeneralException(InviteErrorCode.INVALID_INVITE_CODE));
@@ -99,6 +100,10 @@ public class InviteService {
                 .build();
 
         projectMemberRepository.save(projectMember);
+
+        return ProjectJoinRes.builder()
+                .projectId(project.getId())
+                .build();
     }
 
     //새로운 초대 코드 생성

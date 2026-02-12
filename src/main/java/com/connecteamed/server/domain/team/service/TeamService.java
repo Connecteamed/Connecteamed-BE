@@ -5,6 +5,7 @@ import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.mypage.code.MyPageErrorCode;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
+import com.connecteamed.server.domain.project.enums.ProjectStatus;
 import com.connecteamed.server.domain.project.repository.ProjectMemberRepository;
 import com.connecteamed.server.domain.team.code.TeamErrorCode;
 import com.connecteamed.server.domain.team.dto.TeamListRes;
@@ -34,9 +35,12 @@ public class TeamService {
         List<ProjectMember> projectMembers = projectMemberRepository.findAllByMemberIdWithProject(member.getId());
 
         List<TeamListRes.TeamInfo> teams = projectMembers.stream()
-                .map(pm -> TeamListRes.TeamInfo.builder()
-                        .teamId(pm.getProject().getId())
-                        .name(pm.getProject().getName())
+                .map(ProjectMember::getProject)
+                .filter(project -> project.getDeletedAt() == null &&
+                        project.getStatus() == ProjectStatus.IN_PROGRESS)
+                .map(project -> TeamListRes.TeamInfo.builder()
+                        .teamId(project.getId())
+                        .name(project.getName())
                         .build())
                 .toList();
 
