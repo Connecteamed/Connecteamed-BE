@@ -34,6 +34,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -150,7 +151,7 @@ class MeetingServiceTest {
         lenient().when(mockProjectMember.getMember()).thenReturn(mockMember);
         lenient().when(mockMember.getId()).thenReturn(1L);
         lenient().when(mockMember.getName()).thenReturn("테스터");
-        lenient().when(mockProjectMember.getRoles()).thenReturn(List.of()); // roles 리스트 비어있음 설정
+        lenient().when(mockProjectMember.getRoles()).thenReturn(Set.of()); // roles 리스트 비어있음 설정
 
         Meeting existingMeeting = Meeting.builder()
                 .title("기존")

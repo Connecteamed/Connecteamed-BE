@@ -100,10 +100,10 @@ public class CompletedTaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
-        Long currentMemberId = getCurrentUserId();
+        Long realMemberId = getCurrentUserId();
 
         boolean isAssignee = taskAssigneeRepository.findAllByTaskId(taskId).stream()
-                .anyMatch(a -> a.getProjectMember().getMember().getId().equals(currentMemberId));
+                .anyMatch(a -> a.getProjectMember().getMember().getId().equals(realMemberId));
 
         if (!isAssignee) {
             throw new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 상태를 변경할 수 없습니다.");
@@ -112,7 +112,7 @@ public class CompletedTaskService {
         TaskStatus oldStatus = task.getStatus();
         task.updateStatus(taskStatus);
 
-        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
+        contributionService.recordContribution(realMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         if (taskStatus == TaskStatus.DONE) {
@@ -157,10 +157,10 @@ public class CompletedTaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND, "해당 ID의 업무를 찾을 수 없습니다."));
 
-        Long currentMemberId = getCurrentUserId();
+        Long realMemberId = getCurrentUserId();
 
         taskAssigneeRepository.findAllByTaskId(taskId).stream()
-                .filter(a -> a.getProjectMember().getMember().getId().equals(currentMemberId))
+                .filter(a -> a.getProjectMember().getMember().getId().equals(realMemberId))
                 .findFirst()
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_ACCESS_FORBIDDEN, "해당 업무의 담당자가 아니므로 수정할 수 없습니다."));
 
@@ -197,11 +197,11 @@ public class CompletedTaskService {
 
         taskAssigneeRepository.saveAll(newAssignees);
 
-        TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, currentMemberId)
-                .orElseGet(() -> createNewNote(task, currentMemberId));
+        TaskNote note = taskNoteRepository.findByTaskIdAndTaskAssignee_ProjectMember_Id(taskId, realMemberId)
+                .orElseGet(() -> createNewNote(task, realMemberId));
         note.updateContent(req.noteContent());
 
-        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
+        contributionService.recordContribution(realMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
         // 완료한 업무 정보 수정 시 알림 발송
