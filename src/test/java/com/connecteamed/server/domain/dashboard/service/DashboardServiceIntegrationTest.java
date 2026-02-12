@@ -10,6 +10,7 @@ import com.connecteamed.server.domain.meeting.entity.Meeting;
 import com.connecteamed.server.domain.meeting.repository.MeetingRepository;
 import com.connecteamed.server.domain.notification.entity.Notification;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
 import com.connecteamed.server.domain.project.entity.Project;
 import com.connecteamed.server.domain.project.entity.ProjectMember;
@@ -131,7 +132,7 @@ public class DashboardServiceIntegrationTest {
                 .content("새로운 알림")
                 .targetUrl("/test")
                 .isRead(false)
-                .notificationType(type)
+                .category(NotificationCategory.TASK_TAGGED)
                 .build());
 
         // When: 서비스 호출

@@ -9,6 +9,7 @@ public record DailyScheduleListRes (
 ) {
     public record ScheduleRes (
             Long id,
+            Long teamId,
             String title,
             String teamName,
             Instant time

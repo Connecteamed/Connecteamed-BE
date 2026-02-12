@@ -62,7 +62,7 @@ public class NotificationServiceTest {
                 .id(1L)
                 .receiver(Member.builder().loginId(loginId).build())
                 .project(project)
-                .notificationType(type)
+                .category(NotificationCategory.TASK_TAGGED)
                 .content(category.getMessage())
                 .targetUrl(category.generateUrl(projectId, taskId))
                 .isRead(false)
@@ -86,8 +86,8 @@ public class NotificationServiceTest {
 
         // 상세 필드 검증
         var res = result.notifications().get(0);
-        assertThat(res.teamName()).isEqualTo("테스트 프로젝트");
-        assertThat(res.message()).isEqualTo(category.getMessage());
+        assertThat(res.title()).isEqualTo("테스트 프로젝트");
+        assertThat(res.content()).isEqualTo(category.getMessage());
         assertThat(res.targetUrl()).isEqualTo("/projects/100/tasks/50");
         assertThat(res.notificationType()).isEqualTo("TASK_TAGGED");
     }

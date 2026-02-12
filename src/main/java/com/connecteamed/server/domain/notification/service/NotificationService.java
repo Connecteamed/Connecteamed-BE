@@ -52,6 +52,7 @@ public class NotificationService {
     private NotificationRes convertToResponse(Notification notification) {
         return NotificationRes.builder()
                 .id(notification.getId())
+                .teamId(notification.getProject().getId())
                 .notificationType(notification.getCategory().name())
                 .title(notification.getProject().getName())
                 .content(notification.getContent())
