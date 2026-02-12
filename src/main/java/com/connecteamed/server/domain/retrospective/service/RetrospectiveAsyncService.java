@@ -1,5 +1,8 @@
 package com.connecteamed.server.domain.retrospective.service;
 
+import com.connecteamed.server.domain.notification.enums.NotificationCategory;
+import com.connecteamed.server.domain.notification.service.NotificationCommandService;
+import com.connecteamed.server.domain.notification.service.NotificationHelper;
 import com.connecteamed.server.domain.retrospective.repository.AiRetrospectiveRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -13,6 +16,9 @@ import java.util.List;
 public class RetrospectiveAsyncService {
     private final GeminiProvider geminiProvider;
     private final RetrospectiveUpdateService retrospectiveUpdateService;
+    private final AiRetrospectiveRepository aiRetrospectiveRepository;
+    private final NotificationCommandService notificationCommandService;
+    private final NotificationHelper notificationHelper;
 
     @Async("AsyncExecutor")
     @Transactional
@@ -32,5 +38,14 @@ public class RetrospectiveAsyncService {
         );
 
         retrospectiveUpdateService.updateRetrospectiveResult(retrospectiveId, analyzedResult);
+
+        aiRetrospectiveRepository.findById(retrospectiveId).ifPresent(retrospective -> {
+            notificationHelper.sendToMember(
+                    retrospective.getWriter().getMember(),
+                    retrospective.getProject(),
+                    retrospective.getId(),
+                    NotificationCategory.RETROSPECTIVE_COMPLETED
+            );
+        });
     }
 }

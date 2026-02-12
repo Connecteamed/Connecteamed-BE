@@ -12,7 +12,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Table(name = "notification_new")
+@Table(name = "notification_v2")
 public class Notification extends BaseEntity {
 
     @Id
