@@ -106,7 +106,7 @@ Connected-BE/
 
 <img width="728" height="519" alt="image" src="https://github.com/user-attachments/assets/80e1f799-bf94-4f0d-95db-56f5b4c51f42" />
 
-아키텍쳐/기술 고도화 관련 정리 자료
+<div>아키텍쳐/기술 고도화 관련 정리 자료</div>
 https://productive-technician-879.notion.site/AWS-Nginx-CICD-Redis-3058820c22c880b99c69fcdc022b0591
 
 
