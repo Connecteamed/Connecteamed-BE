@@ -154,6 +154,7 @@ public class TaskServiceImpl implements TaskService {
         // 알림: 완료
         if (req.status() == TaskStatus.DONE) {
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_COMPLETED);
+            notificationHelper.sendToAllAssignees(task, NotificationCategory.TASK_NOTE_REQUIRED);
         }
     }
 
