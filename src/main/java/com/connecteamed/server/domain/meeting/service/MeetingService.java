@@ -77,8 +77,14 @@ public class MeetingService {
         // 마지막에 저장
         Meeting savedMeeting = meetingRepository.save(meeting);
 
-        Long userId = securityUtil.getCurrentMemberId();
-        contributionService.recordContribution(userId, projectId,
+        Long authId = securityUtil.getCurrentMemberId();
+        ProjectMember projectMember = projectMemberRepository.findByProject_IdAndMember_Id(projectId, authId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN, "프로젝트 멤버 정보를 찾을 수 없습니다."));
+        Long realMemberId = projectMember.getMember().getId();
+
+        System.out.println("기여도 기록에 사용될 유저 ID: " + realMemberId);
+
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.MEETING_CREATE, savedMeeting.getId()));
 
         return new MeetingCreateRes(savedMeeting.getId(), savedMeeting.getCreatedAt());
@@ -89,12 +95,10 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findByIdAndDeletedAtIsNull(meetingId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.NOT_FOUND));
 
-        Long userId = securityUtil.getCurrentMemberId();
-        if (!projectMemberRepository.existsByProjectIdAndMemberId(meeting.getProject().getId(), userId)) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN, "회의록 수정 권한이 없습니다.");
-        }
-
-        // 기본 정보 업데이트
+        Long authId = securityUtil.getCurrentMemberId();
+        ProjectMember projectMember = projectMemberRepository.findByProject_IdAndMember_Id(meeting.getProject().getId(), authId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN, "회의록 수정 권한이 없습니다."));
+        Long realMemberId = projectMember.getMember().getId();
         meeting.update(request.title(), request.meetingDate());
 
         // 안건 업데이트
@@ -135,7 +139,7 @@ public class MeetingService {
             });
         }
 
-        contributionService.recordContribution(userId, meeting.getProject().getId(),
+        contributionService.recordContribution(realMemberId, meeting.getProject().getId(),
                 new ContributionReq(ContributionAction.MEETING_UPDATE, meeting.getId()));
         return getMeeting(meetingId);
     }

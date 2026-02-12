@@ -1,12 +1,14 @@
 package com.connecteamed.server.domain.notification.service;
 
 import com.connecteamed.server.domain.member.entity.Member;
+import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.entity.Notification;
 import com.connecteamed.server.domain.notification.entity.NotificationType;
 import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.repository.NotificationRepository;
 import com.connecteamed.server.domain.notification.repository.NotificationTypeRepository;
 import com.connecteamed.server.domain.project.entity.Project;
+import com.connecteamed.server.domain.project.repository.ProjectRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +32,10 @@ public class NotificationCommandServiceTest {
     private NotificationRepository notificationRepository;
 
     @Mock
-    private NotificationTypeRepository notificationTypeRepository;
+    private MemberRepository memberRepository;
+
+    @Mock
+    private ProjectRepository projectRepository;
 
     @InjectMocks
     private NotificationCommandService notificationCommandService;
@@ -39,21 +44,20 @@ public class NotificationCommandServiceTest {
     @DisplayName("알림 생성 및 저장 성공 테스트")
     void send_Notification_Success() {
         // given
-        Member receiver = Member.builder().id(1L).build();
-        Member sender = Member.builder().id(2L).build();
-        Project project = Project.builder().id(100L).name("Connected").build();
+        Long receiverId = 1L;
+        Long senderId = 2L;
+        Long projectId = 100L;
         Long taskId = 50L;
         NotificationCategory category = NotificationCategory.TASK_TAGGED;
 
-        NotificationType mockType = NotificationType.builder()
-                .typeKey(category.name())
-                .build();
+        Member receiver = Member.builder().id(receiverId).build();
+        Project project = Project.builder().id(projectId).name("Connected").build();
 
-        when(notificationTypeRepository.findByTypeKey(category.name()))
-                .thenReturn(Optional.of(mockType));
+        when(memberRepository.findById(receiverId)).thenReturn(Optional.of(receiver));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
 
         // when
-        notificationCommandService.send(receiver, sender, project, taskId, category.name());
+        notificationCommandService.send(receiverId, senderId, projectId, taskId, category.name());
 
         // then
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
@@ -61,7 +65,9 @@ public class NotificationCommandServiceTest {
         Notification savedNotification = captor.getValue();
 
         assertThat(savedNotification.getReceiver()).isEqualTo(receiver);
+        assertThat(savedNotification.getProject()).isEqualTo(project);
+        assertThat(savedNotification.getCategory()).isEqualTo(category);
         assertThat(savedNotification.getContent()).isEqualTo(category.getMessage());
-        assertThat(savedNotification.getTargetUrl()).isEqualTo(category.generateUrl(100L, 50L));
+        assertThat(savedNotification.getTargetUrl()).isEqualTo(category.generateUrl(projectId, taskId));
     }
 }

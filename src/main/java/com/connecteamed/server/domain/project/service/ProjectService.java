@@ -136,7 +136,6 @@ public class ProjectService {
         }
         contributionService.recordContribution(owner.getId(), savedProject.getId(),
                 new ContributionReq(ContributionAction.PROJECT_CREATE, savedProject.getId()));
-
         // 4. 응답 반환
         log.info("[ProjectService] Returning CreateResponse: projectId={}", savedProject.getId());
         return ProjectRes.CreateResponse.builder()
@@ -231,7 +230,8 @@ public class ProjectService {
                 log.debug("[ProjectService] Required role registered: {}", roleName);
             }
         }
-        contributionService.recordContribution(getCurrentUserId(), projectId,
+        Long realMemberId = getCurrentUserId();
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.PROJECT_UPDATE, project.getId()));
 
         // 6. 응답 반환
