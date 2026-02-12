@@ -47,7 +47,10 @@ public class MyPageProjectService {
         List<ProjectMember> participations = projectMemberRepository.findAllByMember(member);
 
         List<MyPageProjectListRes.CompletedProjectData> projectDataList = participations.stream()
-                .filter(pm -> pm.getProject().getStatus() == ProjectStatus.COMPLETED)
+                .filter(pm -> {
+                    Project p = pm.getProject();
+                    return p.getStatus() == ProjectStatus.COMPLETED && p.getDeletedAt() == null;
+                })
                 .map(pm -> {
                     Project p = pm.getProject();
 

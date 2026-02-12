@@ -156,6 +156,7 @@ public class TaskServiceImpl implements TaskService {
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
         } else if (req.status() == TaskStatus.DONE) {
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_COMPLETED);
+            notificationHelper.sendToAllAssignees(task, NotificationCategory.TASK_NOTE_REQUIRED);
         }
     }
 

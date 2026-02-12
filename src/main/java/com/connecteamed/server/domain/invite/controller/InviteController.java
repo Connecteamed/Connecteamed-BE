@@ -4,6 +4,7 @@ package com.connecteamed.server.domain.invite.controller;
 import com.connecteamed.server.domain.invite.code.InviteSuccessCode;
 import com.connecteamed.server.domain.invite.dto.InviteCodeRes;
 import com.connecteamed.server.domain.invite.dto.ProjectJoinReq;
+import com.connecteamed.server.domain.invite.dto.ProjectJoinRes;
 import com.connecteamed.server.domain.invite.service.InviteService;
 import com.connecteamed.server.global.apiPayload.ApiResponse;
 import com.connecteamed.server.global.util.SecurityUtil;
@@ -75,7 +76,7 @@ public class InviteController {
                                     value = """
                                             {
                                               "status": "success",
-                                              "data": null,
+                                              "data": {"projectId":1},
                                               "message": "요청에 성공하였습니다.",
                                               "code": null
                                             }
@@ -85,14 +86,14 @@ public class InviteController {
             )
     })
     @PostMapping("/join")
-    public ApiResponse<String> joinProject(
+    public ApiResponse<ProjectJoinRes> joinProject(
             @Valid @RequestBody ProjectJoinReq request
     ) {
         String loginId = SecurityUtil.getCurrentLoginId();
 
-        inviteService.joinProjectByCode(request.getInviteCode(), loginId);
+        ProjectJoinRes response = inviteService.joinProjectByCode(request.getInviteCode(), loginId);
 
-        return ApiResponse.onSuccess(InviteSuccessCode.INVITE_OK, null);
+// null 대신 response 전달
+        return ApiResponse.onSuccess(InviteSuccessCode.INVITE_OK, response);
     }
-
 }
