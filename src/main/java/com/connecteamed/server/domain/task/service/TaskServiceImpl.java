@@ -151,11 +151,10 @@ public class TaskServiceImpl implements TaskService {
         contributionService.recordContribution(currentMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
-        // 알림: 다시 진행 중 or 완료
-        if (oldStatus == TaskStatus.DONE && req.status() == TaskStatus.IN_PROGRESS) {
-            notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
-        } else if (req.status() == TaskStatus.DONE) {
+        // 알림: 완료
+        if (req.status() == TaskStatus.DONE) {
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_COMPLETED);
+            notificationHelper.sendToAllAssignees(task, NotificationCategory.TASK_NOTE_REQUIRED);
         }
     }
 

@@ -33,6 +33,10 @@ public class DashboardRes {
         @Schema(description = "회고 ID", example = "101")
         private Long id;
 
+        @JsonProperty("projectId")
+        @Schema(description = "프로젝트 ID", example = "1")
+        private Long projectId;
+
         @JsonProperty("title")
         @Schema(description = "회고 제목", example = "회고 제목입니다")
         private String title;

@@ -141,6 +141,7 @@ public class DashboardService {
         List<DashboardRes.RetrospectiveInfo> retrospectiveInfos = retrospectives.stream()
                 .map(retrospective -> DashboardRes.RetrospectiveInfo.builder()
                         .id(retrospective.getId())
+                        .projectId(retrospective.getProject().getId())
                         .title(retrospective.getTitle())
                         .teamName(retrospective.getProject().getName())
                         .writtenDate(retrospective.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate())

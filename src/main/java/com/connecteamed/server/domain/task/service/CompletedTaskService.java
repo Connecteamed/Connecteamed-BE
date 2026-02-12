@@ -3,6 +3,7 @@ package com.connecteamed.server.domain.task.service;
 import com.connecteamed.server.domain.contribution.dto.ContributionReq;
 import com.connecteamed.server.domain.contribution.enums.ContributionAction;
 import com.connecteamed.server.domain.contribution.service.ContributionService;
+import com.connecteamed.server.domain.member.entity.Member;
 import com.connecteamed.server.domain.member.repository.MemberRepository;
 import com.connecteamed.server.domain.notification.enums.NotificationCategory;
 import com.connecteamed.server.domain.notification.service.NotificationCommandService;
@@ -114,8 +115,13 @@ public class CompletedTaskService {
         contributionService.recordContribution(currentMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.COMPLETED_TASK_UPDATE, taskId));
 
-        // 완료한 업무 상태 변경 시 알림 발송
-        if (oldStatus == TaskStatus.DONE && taskStatus == TaskStatus.IN_PROGRESS) {
+        if (taskStatus == TaskStatus.DONE) {
+            // 업무 완료 알림을 먼저 발송
+            notificationHelper.sendToOthers(task, NotificationCategory.TASK_COMPLETED);
+            // 느낀 점 작성 알림 발송
+            notificationHelper.sendToAllAssignees(task, NotificationCategory.TASK_NOTE_REQUIRED);
+        } else if (oldStatus == TaskStatus.DONE && taskStatus == TaskStatus.IN_PROGRESS) {
+            // 다시 진행 중으로 변경 시 알림
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
         }
     }

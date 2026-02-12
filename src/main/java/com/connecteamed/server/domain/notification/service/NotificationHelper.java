@@ -84,4 +84,19 @@ public class NotificationHelper {
             );
         }
     }
+
+    /**
+     * 특정 멤버 한 명에게만 알림 발송 (예: 회고 완료 알림)
+     */
+    public void sendToMember(Member receiver, Project project, Long targetId, NotificationCategory category) {
+        if (receiver != null) {
+            notificationCommandService.send(
+                    receiver.getId(),
+                    null,
+                    project.getId(),
+                    targetId,
+                    category.name()
+            );
+        }
+    }
 }
