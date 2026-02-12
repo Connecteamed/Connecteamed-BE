@@ -90,7 +90,7 @@ class ProjectMemberServiceImplTest {
         roleList = new ArrayList<>();
         roleList.add(mockPmRole(1L, "role1"));
         roleList.add(mockPmRole(2L, "role2"));
-        lenient().when(pm.getRoles()).thenReturn(roleList);
+        lenient().when(pm.getRoles()).thenReturn(new HashSet<>(roleList));
 
         // 기본 조회 스텁(테스트별로 override 가능)
         lenient().when(projectMemberRepository.findByIdAndProjectId(10L, 1L))
