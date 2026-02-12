@@ -46,7 +46,7 @@ public class ContributionServiceTest {
 
         // then
         assertThat(result.isIncremented()).isTrue();
-        assertThat(result.totalCount()).isEqualTo(1);
+        assertThat(result.todayCount()).isEqualTo(1);
         assertThat(result.currentLevel()).isEqualTo(1); // 1회는 레벨 1
         verify(contributionRepository, times(1)).save(any(Contribution.class));
     }
@@ -69,7 +69,7 @@ public class ContributionServiceTest {
 
         // then
         assertThat(result.isIncremented()).isFalse();
-        assertThat(result.totalCount()).isEqualTo(5);
+        assertThat(result.todayCount()).isEqualTo(5);
         assertThat(result.currentLevel()).isEqualTo(2);
         verify(contributionRepository, never()).save(any(Contribution.class));
     }

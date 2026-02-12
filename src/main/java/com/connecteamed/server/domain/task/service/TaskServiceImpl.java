@@ -74,7 +74,8 @@ public class TaskServiceImpl implements TaskService {
         // 알림: 업무 태그
         notificationHelper.sendToAllAssignees(saved, NotificationCategory.TASK_TAGGED);
 
-        contributionService.recordContribution(getCurrentUserId(), projectId,
+        Long realMemberId = getCurrentUserId();
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.TASK_CREATE, saved.getId()));
 
         return saved.getId();
@@ -142,16 +143,15 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
-        Long currentMemberId = getCurrentUserId();
-        validateProjectAccess(task.getProject().getId(), currentMemberId);
+        Long realMemberId = getCurrentUserId();
+        validateProjectAccess(task.getProject().getId(), realMemberId);
 
         TaskStatus oldStatus = task.getStatus();
         task.changeStatus(req.status());
 
-        contributionService.recordContribution(currentMemberId, task.getProject().getId(),
+        contributionService.recordContribution(realMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
-        // 알림: 다시 진행 중 or 완료
         if (oldStatus == TaskStatus.DONE && req.status() == TaskStatus.IN_PROGRESS) {
             notificationHelper.sendToOthers(task, NotificationCategory.TASK_RESTARTED);
         } else if (req.status() == TaskStatus.DONE) {
@@ -165,7 +165,8 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndDeletedAtIsNull(taskId)
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
-        validateProjectAccess(task.getProject().getId(), getCurrentUserId());
+        Long realMemberId = getCurrentUserId();
+        validateProjectAccess(task.getProject().getId(), realMemberId);
 
         if (req.startDate().isAfter(req.dueDate())) {
             throw new TaskException(TaskErrorCode.INVALID_SCHEDULE);
@@ -173,10 +174,9 @@ public class TaskServiceImpl implements TaskService {
 
         task.changeSchedule(req.startDate(), req.dueDate());
 
-        contributionService.recordContribution(getCurrentUserId(), task.getProject().getId(),
+        contributionService.recordContribution(realMemberId, task.getProject().getId(),
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
-        // 알림: 업무 내용 수정
         notificationHelper.sendToOthers(task, NotificationCategory.TASK_MODIFIED);
     }
 
@@ -187,7 +187,8 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new TaskException(TaskErrorCode.TASK_NOT_FOUND));
 
         Long projectId = task.getProject().getId();
-        validateProjectAccess(projectId, getCurrentUserId());
+        Long realMemberId = getCurrentUserId();
+        validateProjectAccess(projectId, realMemberId);
 
         taskAssigneeRepository.deleteAllByTask(task);
         taskAssigneeRepository.flush();
@@ -195,7 +196,7 @@ public class TaskServiceImpl implements TaskService {
         List<Long> assigneeIds = req.assigneeProjectMemberIds() == null ? List.of() : req.assigneeProjectMemberIds();
         attachAssignees(task, projectId, assigneeIds);
 
-        contributionService.recordContribution(getCurrentUserId(), projectId,
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.TASK_UPDATE, taskId));
 
         // 알림: 새로 태그된 사람들에게 알림 발송

@@ -4,7 +4,7 @@ import com.connecteamed.server.domain.contribution.enums.ContributionAction;
 
 public record ContributionRes (
         ContributionAction actionType,
-        int totalCount,
+        int todayCount,
         int currentLevel,
         boolean isIncremented
 ) {}

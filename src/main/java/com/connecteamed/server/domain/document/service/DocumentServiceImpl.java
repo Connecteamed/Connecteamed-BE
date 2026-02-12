@@ -141,11 +141,12 @@ public class DocumentServiceImpl implements DocumentService {
         Project projectRef = projectRepository.getReferenceById(projectId);
 
         ProjectMember projectMember = getProjectMember(projectId, loginId);
+        Long realMemberId = projectMember.getMember().getId();
 
         Document d = Document.createText(projectRef, projectMember, req.title());
         documentRepository.save(d);
 
-        contributionService.recordContribution(projectMember.getMember().getId(), projectId,
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
 
         return new DocumentCreateRes(d.getId(), d.getCreatedAt().toString());
@@ -162,6 +163,7 @@ public class DocumentServiceImpl implements DocumentService {
         Project projectRef = projectRepository.getReferenceById(projectId);
 
         ProjectMember projectMember = getProjectMember(projectId, loginId);
+        Long realMemberId = projectMember.getMember().getId();
 
         String fileUrl = s3StorageService.upload(file, "project-" + projectId);
 
@@ -172,7 +174,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document d = Document.createFile(projectRef, projectMember, title, type, fileUrl);
         documentRepository.save(d);
 
-        contributionService.recordContribution(projectMember.getMember().getId(), projectId,
+        contributionService.recordContribution(realMemberId, projectId,
                 new ContributionReq(ContributionAction.DOCUMENT_CREATE, d.getId()));
 
         return new DocumentUploadRes(d.getId(), title, d.getCreatedAt().toString());
@@ -191,7 +193,9 @@ public class DocumentServiceImpl implements DocumentService {
 
         d.updateText(req.title(), req.content());
 
-        contributionService.recordContribution(d.getProjectMember().getMember().getId(), d.getProject().getId(),
+        Long realMemberId = d.getProjectMember().getMember().getId();
+
+        contributionService.recordContribution(realMemberId, d.getProject().getId(),
                 new ContributionReq(ContributionAction.DOCUMENT_UPDATE, d.getId()));
     }
 
