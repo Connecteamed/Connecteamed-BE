@@ -10,6 +10,7 @@ public record UpcomingTaskListRes (
 ) {
     public record UpcomingTaskRes (
             Long id,
+            Long teamId,
             String title,
             TaskStatus status,
             String teamName,

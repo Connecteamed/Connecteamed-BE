@@ -62,7 +62,7 @@ public class NotificationServiceTest {
                 .id(1L)
                 .receiver(Member.builder().loginId(loginId).build())
                 .project(project)
-                .category(category)
+                .category(NotificationCategory.TASK_TAGGED)
                 .content(category.getMessage())
                 .targetUrl(category.generateUrl(projectId, taskId))
                 .isRead(false)

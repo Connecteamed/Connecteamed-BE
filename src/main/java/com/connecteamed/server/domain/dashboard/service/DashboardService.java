@@ -71,6 +71,7 @@ public class DashboardService {
         List<UpcomingTaskListRes.UpcomingTaskRes> taskResList = tasks.stream()
                 .map(task -> new UpcomingTaskListRes.UpcomingTaskRes(
                         task.getId(),
+                        task.getProject().getId(),
                         task.getName(),
                         task.getStatus(),
                         task.getProject().getName(),
@@ -87,6 +88,7 @@ public class DashboardService {
         List<NotificationListRes.NotificationRes> resList = notifications.stream()
                 .map(n -> new NotificationListRes.NotificationRes(
                         n.getId(),
+                        n.getProject().getId(),
                         n.getContent(),
                         n.getProject().getName(),
                         n.isRead(),
@@ -113,6 +115,7 @@ public class DashboardService {
         // 업무 추가
         dailyTasks.forEach(t -> resList.add(new DailyScheduleListRes.ScheduleRes(
                 t.getId(),
+                t.getProject().getId(),
                 "[업무] " + t.getName(),
                 t.getProject().getName(),
                 t.getDueDate()
@@ -121,6 +124,7 @@ public class DashboardService {
         // 회의 추가
         dailyMeetings.forEach(m -> resList.add(new DailyScheduleListRes.ScheduleRes(
                 m.getId(),
+                m.getProject().getId(),
                 "[회의] " + m.getTitle(),
                 m.getProject().getName(),
                 m.getMeetingDate()
@@ -141,7 +145,7 @@ public class DashboardService {
         List<DashboardRes.RetrospectiveInfo> retrospectiveInfos = retrospectives.stream()
                 .map(retrospective -> DashboardRes.RetrospectiveInfo.builder()
                         .id(retrospective.getId())
-                        .projectId(retrospective.getProject().getId())
+                        .teamId(retrospective.getProject().getId())
                         .title(retrospective.getTitle())
                         .teamName(retrospective.getProject().getName())
                         .writtenDate(retrospective.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate())

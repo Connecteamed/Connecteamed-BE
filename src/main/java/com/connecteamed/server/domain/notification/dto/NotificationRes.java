@@ -5,6 +5,7 @@ import lombok.Builder;
 @Builder
 public record NotificationRes (
         Long id,
+        Long teamId,
         String notificationType,
         String title,
         String content,

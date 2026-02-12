@@ -8,6 +8,7 @@ public record NotificationListRes (
 ) {
     public record NotificationRes (
             Long id,
+            Long teamId,
             String message,
             String teamName,
             boolean isRead,
